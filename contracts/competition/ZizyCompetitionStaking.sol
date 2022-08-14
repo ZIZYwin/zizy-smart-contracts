@@ -329,6 +329,7 @@ contract ZizyCompetitionStaking is OwnableUpgradeable {
     function unStake(uint256 amount_) external whenFeeAddressExist {
         uint256 currentBalance = balanceOf(msg.sender);
         require(amount_ <= currentBalance, "Insufficient balance for unstake");
+        require(amount_ > 0, "Amount should higher than zero");
 
         IERC20Upgradeable token = stakeToken;
 
