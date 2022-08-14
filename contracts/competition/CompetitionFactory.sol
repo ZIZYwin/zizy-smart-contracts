@@ -343,6 +343,7 @@ contract CompetitionFactory is OwnableUpgradeable, ReentrancyGuardUpgradeable {
 
     // Buy ticket for a competition
     function buyTicket(uint256 periodId, uint16 competitionId, uint32 ticketCount) external paymentReceiverIsSet nonReentrant {
+        require(ticketCount > 0, "Requested ticket count should be higher than zero");
         Competition memory comp = _periodCompetitions[periodId][competitionId];
         require(comp.buyActive == true, "Buy ticket is not active yet");
 
@@ -382,6 +383,21 @@ contract CompetitionFactory is OwnableUpgradeable, ReentrancyGuardUpgradeable {
         require(comp._exist == true, "Competition does not exist");
         comp.ticket.mint(to_, ticketId_);
         emit TicketSend(to_, periodId, competitionId, ticketId_);
+    }
+
+    // Mint & Send ticket batch
+    function mintBatchTicket(uint256 periodId, uint16 competitionId, address to_, uint256[] calldata ticketIds) external onlyMinter {
+        uint length = ticketIds.length;
+        require(length > 0, "Ticket ids length should be higher than zero");
+
+        Competition memory comp = _periodCompetitions[periodId][competitionId];
+        require(comp._exist == true, "Competition does not exist");
+
+        for (uint i = 0; i < length; ++i) {
+            uint256 mintTicketId = ticketIds[i];
+            comp.ticket.mint(to_, mintTicketId);
+            emit TicketSend(to_, periodId, competitionId, mintTicketId);
+        }
     }
 
     // Get total period count
