@@ -1,0 +1,32 @@
+{
+  "name": "hardhat-project",
+  "author": "Bilal - Zizy",
+  "devDependencies": {
+    "@nomiclabs/hardhat-waffle": "^2.0.3",
+    "@remix-project/remixd": "^0.6.1",
+    "@typechain/hardhat": "^6.0.0",
+    "@types/jest": "^27.5.1",
+    "@types/mocha": "^9.1.1",
+    "hardhat": "^2.9.5",
+    "hardhat-gas-reporter": "^1.0.8",
+    "ts-node": "^10.7.0",
+    "typescript": "^4.6.4",
+    "@openzeppelin/hardhat-upgrades": "^1.19.0"
+  },
+  "dependencies": {
+    "@nomiclabs/hardhat-ethers": "^2.0.5",
+    "@nomiclabs/hardhat-etherscan": "^3.0.3",
+    "dotenv": "^16.0.1",
+    "ethers": "^5.6.5",
+    "@openzeppelin/contracts-upgradeable": "^4.6.0",
+    "@openzeppelin/contracts": "^4.6.0"
+  },
+  "scripts": {
+    "test": "npx hardhat test --network hardhatLocal",
+    "serve:remix-ide": "remixd -s ./ -u https://remix.ethereum.org",
+    "compile": "npx hardhat compile",
+    "hardhat:node": "npx hardhat node",
+    "compute:test": "node ./compute.js",
+    "compute:test2": "node ./compute2.js"
+  }
+}
