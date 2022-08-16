@@ -17,10 +17,10 @@ contract TicketDeployer is Ownable {
     }
 
     // Deploy new Ticket NFT contract
-    function deploy(string memory name_, string memory symbol_, string memory description_) external onlyOwner returns(uint256, address) {
+    function deploy(string memory name_, string memory symbol_) external onlyOwner returns(uint256, address) {
         uint256 index = ticketContractCounter;
 
-        ZizyCompetitionTicket ticketContract = new ZizyCompetitionTicket(name_, symbol_, description_);
+        ZizyCompetitionTicket ticketContract = new ZizyCompetitionTicket(name_, symbol_);
         ticketContract.transferOwnership(owner());
         tickets.push(address(ticketContract));
 
