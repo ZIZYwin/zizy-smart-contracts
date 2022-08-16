@@ -88,17 +88,10 @@ contract CompetitionFactory is OwnableUpgradeable, ReentrancyGuardUpgradeable {
         uint256 cPeriod = _currentPeriodNumber;
 
         if (cPeriod == 0) {
-            // Check current period end time
+            // Check current isn't exist
             require(_periods[cPeriod]._exist == false, "ZizyComp: Period exist");
-            require(_periods[cPeriod].endTime < block.timestamp, "ZizyComp: Current period isn't completed");
-        } else {
-            // Check current period & previous period end time
-            require(_periods[cPeriod]._exist == false, "ZizyComp: Period exist");
-            require(_periods[cPeriod].endTime < block.timestamp, "ZizyComp: Current period isn't completed");
-
-            require(_periods[cPeriod - 1]._exist == false, "ZizyComp: Period exist");
-            require(_periods[cPeriod - 1].endTime < block.timestamp, "ZizyComp: Previous period isn't completed");
         }
+        require(_periods[cPeriod].endTime < block.timestamp, "ZizyComp: Current period isn't completed");
         _;
     }
 
