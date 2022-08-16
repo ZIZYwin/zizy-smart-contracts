@@ -17,13 +17,20 @@ contract ZizyRewardsHub is OwnableUpgradeable, ReentrancyGuardUpgradeable, ERC72
     event CompRewardUpdated(address indexed ticket, uint256 ticketId);
     event AirdropRewardDefined(address indexed receiver, uint256 airdropId);
     event AirdropRewardUpdated(address indexed receiver, uint256 airdropId);
-    event RewardClaimed(RewardType rewardType, address rewardAddress, address receiver, uint amount, uint tokenId);
-    event RewardClaimedOnDiffChain(RewardType rewardType, address rewardAddress, address receiver, uint chainId, uint amount, uint tokenId);
+    event AirdropRewardClaimed(uint256 indexed airdropId, RewardType rewardType, address rewardAddress, address receiver, uint amount, uint tokenId);
+    event AirdropRewardClaimedOnDiffChain(uint256 indexed airdropId, RewardType rewardType, address rewardAddress, address receiver, uint chainId, uint amount, uint tokenId);
+    event CompRewardClaimed(uint256 periodId, uint256 competitionId, RewardType rewardType, address rewardAddress, address receiver, uint amount, uint tokenId);
+    event CompRewardClaimedOnDiffChain(uint256 periodId, uint256 competitionId, RewardType rewardType, address rewardAddress, address receiver, uint chainId, uint amount, uint tokenId);
 
     enum RewardType {
         Token,
         NFT,
         Native
+    }
+
+    struct CompRewardSource {
+        uint256 periodId;
+        uint256 competitionId;
     }
 
     struct Reward {
@@ -40,6 +47,9 @@ contract ZizyRewardsHub is OwnableUpgradeable, ReentrancyGuardUpgradeable, ERC72
 
     // Competition rewards [TicketNFTAddress > TokenID > Reward]
     mapping(address => mapping(uint256 => Reward)) private _competitionRewards;
+
+    // Competition reward sources [TicketNFTAddress > TokenID > CompRewardSource]
+    mapping(address => mapping(uint256 => CompRewardSource)) private _compRewardSource;
 
     // Airdrop rewards [Account > AirdropID > Reward]
     mapping(address => mapping(uint256 => Reward)) private _airdropRewards;
@@ -143,7 +153,7 @@ contract ZizyRewardsHub is OwnableUpgradeable, ReentrancyGuardUpgradeable, ERC72
     }
 
     // Set single competition reward
-    function _setCompetitionReward(address ticket_, uint256 ticketId_, uint chainId_, RewardType rewardType, address rewardAddress_, uint amount, uint tokenId) internal {
+    function _setCompetitionReward(uint256 periodId, uint256 competitionId, address ticket_, uint256 ticketId_, uint chainId_, RewardType rewardType, address rewardAddress_, uint amount, uint tokenId) internal {
         Reward memory reward = _competitionRewards[ticket_][ticketId_];
         require(reward.isClaimed == false, "Cant update claimed reward !");
 
@@ -157,22 +167,23 @@ contract ZizyRewardsHub is OwnableUpgradeable, ReentrancyGuardUpgradeable, ERC72
             emit CompRewardUpdated(ticket_, ticketId_);
         }
 
+        _compRewardSource[ticket_][ticketId_] = CompRewardSource(periodId, competitionId);
         _competitionRewards[ticket_][ticketId_] = Reward(chainId_, rewardType, rewardAddress_, amount, tokenId, false, true);
     }
 
     // Define competition reward
-    function setCompetitionReward(address ticket_, uint256 ticketId_, uint chainId_, RewardType rewardType, address rewardAddress_, uint amount, uint tokenId) external onlyRewardDefiner {
-        _setCompetitionReward(ticket_, ticketId_, chainId_, rewardType, rewardAddress_, amount, tokenId);
+    function setCompetitionReward(uint256 periodId, uint256 competitionId, address ticket_, uint256 ticketId_, uint chainId_, RewardType rewardType, address rewardAddress_, uint amount, uint tokenId) external onlyRewardDefiner {
+        _setCompetitionReward(periodId, competitionId, ticket_, ticketId_, chainId_, rewardType, rewardAddress_, amount, tokenId);
     }
 
     // Define Batch ERC20-Standard token rewards on competition
-    function setCompetitionTokenRewardBatch(address ticket_, uint chainId_, address rewardAddress_, uint[] calldata ticketIds_, uint[] calldata amounts_) external onlyRewardDefiner {
+    function setCompetitionTokenRewardBatch(uint256 periodId, uint256 competitionId, address ticket_, uint chainId_, address rewardAddress_, uint[] calldata ticketIds_, uint[] calldata amounts_) external onlyRewardDefiner {
         uint len = ticketIds_.length;
         require(len > 0, "Rewards is not filled");
         require(amounts_.length == len, "Rewards length does not match");
 
         for (uint i = 0; i < len; ++i) {
-            _setCompetitionReward(ticket_, ticketIds_[i], chainId_, RewardType.Token, rewardAddress_, amounts_[i], 0);
+            _setCompetitionReward(periodId, competitionId, ticket_, ticketIds_[i], chainId_, RewardType.Token, rewardAddress_, amounts_[i], 0);
         }
     }
 
@@ -220,7 +231,7 @@ contract ZizyRewardsHub is OwnableUpgradeable, ReentrancyGuardUpgradeable, ERC72
 
         if (rew.chainId != chainId()) {
             // Reward isn't in current chain
-            emit RewardClaimedOnDiffChain(rew.rewardType, rew.rewardAddress, msg.sender, rew.chainId, rew.amount, rew.tokenId);
+            emit AirdropRewardClaimedOnDiffChain(airdropId_, rew.rewardType, rew.rewardAddress, msg.sender, rew.chainId, rew.amount, rew.tokenId);
         } else {
             // Reward is in current chain
 
@@ -235,7 +246,7 @@ contract ZizyRewardsHub is OwnableUpgradeable, ReentrancyGuardUpgradeable, ERC72
                 _sendNativeCoin(payable(msg.sender), rew.amount);
             }
 
-            emit RewardClaimed(rew.rewardType, rew.rewardAddress, msg.sender, rew.amount, rew.tokenId);
+            emit AirdropRewardClaimed(airdropId_, rew.rewardType, rew.rewardAddress, msg.sender, rew.amount, rew.tokenId);
         }
     }
 
@@ -250,9 +261,11 @@ contract ZizyRewardsHub is OwnableUpgradeable, ReentrancyGuardUpgradeable, ERC72
 
         _competitionRewards[ticketContract_][ticketId_].isClaimed = true;
 
+        CompRewardSource memory rewSource = _compRewardSource[ticketContract_][ticketId_];
+
         if (rew.chainId != chainId()) {
             // Reward isn't in current chain
-            emit RewardClaimedOnDiffChain(rew.rewardType, rew.rewardAddress, msg.sender, rew.chainId, rew.amount, rew.tokenId);
+            emit CompRewardClaimedOnDiffChain(rewSource.periodId, rewSource.competitionId, rew.rewardType, rew.rewardAddress, msg.sender, rew.chainId, rew.amount, rew.tokenId);
         } else {
             // Reward is in current chain
 
@@ -267,7 +280,7 @@ contract ZizyRewardsHub is OwnableUpgradeable, ReentrancyGuardUpgradeable, ERC72
                 _sendNativeCoin(payable(msg.sender), rew.amount);
             }
 
-            emit RewardClaimed(rew.rewardType, rew.rewardAddress, msg.sender, rew.amount, rew.tokenId);
+            emit CompRewardClaimed(rewSource.periodId, rewSource.competitionId, rew.rewardType, rew.rewardAddress, msg.sender, rew.amount, rew.tokenId);
         }
     }
 
