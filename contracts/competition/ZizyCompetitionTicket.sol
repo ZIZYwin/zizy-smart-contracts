@@ -10,40 +10,19 @@ import "../utils/ERC721Pausable.sol";
 // @dev We building sth big. Stay tuned!
 contract ZizyCompetitionTicket is ERC721, ERC721Enumerable, ERC721Pausable, Ownable {
 
-    event DescriptionChanged(string description);
     event TicketMinted(address ticketOwner, uint256 ticketId);
-
-    /**
-     * @dev Zizy competition description [optional]
-     */
-    string public competitionDescription = "";
 
     /**
      * @dev Ticket base uri [optional]
      */
     string public baseUri = "";
 
-    constructor(string memory name_, string memory symbol_, string memory description_) ERC721(name_, symbol_) {
-        _setDescription(description_);
+    constructor(string memory name_, string memory symbol_) ERC721(name_, symbol_) {
+
     }
 
     function supportsInterface(bytes4 interfaceId) public view virtual override(ERC721, ERC721Enumerable) returns (bool) {
         return super.supportsInterface(interfaceId);
-    }
-
-    /**
-     * @dev Change's competition description [internal]
-     */
-    function _setDescription(string memory description_) internal {
-        competitionDescription = description_;
-        emit DescriptionChanged(description_);
-    }
-
-    /**
-     * @dev Change's competition description
-     */
-    function setDescription(string memory description_) public virtual onlyOwner {
-        _setDescription(description_);
     }
 
     /**
