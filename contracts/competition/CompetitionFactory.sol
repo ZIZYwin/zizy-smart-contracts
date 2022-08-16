@@ -13,8 +13,8 @@ import "./ITicketDeployer.sol";
 contract CompetitionFactory is OwnableUpgradeable, ReentrancyGuardUpgradeable {
     using SafeERC20Upgradeable for IERC20Upgradeable;
 
-    event NewCompetitionPeriod(uint startTime, uint endTime, uint256 periodNumber);
-    event NewCompetition(uint256 periodNumber, address ticketAddress);
+    event NewCompetitionPeriod(uint startTime, uint endTime, uint256 periodId);
+    event NewCompetition(uint256 periodId, address ticketAddress);
     event TicketBuy(address indexed account, uint256 periodId, uint256 competitionId, uint32 indexed ticketCount);
     event TicketSend(address indexed account, uint256 periodId, uint256 competitionId, uint256 ticketId);
 
@@ -404,54 +404,54 @@ contract CompetitionFactory is OwnableUpgradeable, ReentrancyGuardUpgradeable {
     }
 
     // Get period details
-    function getPeriod(uint256 periodNum) external view returns (CompetitionPeriod memory) {
-        return _periods[periodNum];
+    function getPeriod(uint256 periodId) external view returns (CompetitionPeriod memory) {
+        return _periods[periodId];
     }
 
     // Get period competition details
-    function getPeriodCompetition(uint256 periodNum, uint256 competitionNum) external view returns (Competition memory) {
-        return _periodCompetitions[periodNum][competitionNum];
+    function getPeriodCompetition(uint256 periodId, uint256 competitionId) external view returns (Competition memory) {
+        return _periodCompetitions[periodId][competitionId];
     }
 
     // Get period competition count
-    function getPeriodCompetitionCount(uint256 periodNum) external view returns (uint) {
-        return _periods[periodNum].competitionCount;
+    function getPeriodCompetitionCount(uint256 periodId) external view returns (uint) {
+        return _periods[periodId].competitionCount;
     }
 
     // Get competition ticket contract address
-    function _compTicket(uint256 periodNum, uint256 competitionNum) internal view returns (address) {
-        Competition memory comp = _periodCompetitions[periodNum][competitionNum];
+    function _compTicket(uint256 periodId, uint256 competitionId) internal view returns (address) {
+        Competition memory comp = _periodCompetitions[periodId][competitionId];
         require(comp._exist, "ZizyComp: Competition does not exist");
         return address(comp.ticket);
     }
 
     // Pause competition ticket transfers
-    function pauseCompetitionTransfer(uint256 periodNum, uint256 competitionNum) external onlyOwner {
-        address ticketAddr = _compTicket(periodNum, competitionNum);
+    function pauseCompetitionTransfer(uint256 periodId, uint256 competitionId) external onlyOwner {
+        address ticketAddr = _compTicket(periodId, competitionId);
         IZizyCompetitionTicket(ticketAddr).pause();
     }
 
     // Un-pause competition ticket transfers
-    function unpauseCompetitionTransfer(uint256 periodNum, uint256 competitionNum) external onlyOwner {
-        address ticketAddr = _compTicket(periodNum, competitionNum);
+    function unpauseCompetitionTransfer(uint256 periodId, uint256 competitionId) external onlyOwner {
+        address ticketAddr = _compTicket(periodId, competitionId);
         IZizyCompetitionTicket(ticketAddr).unpause();
     }
 
     // Set competition ticket baseUri
-    function setCompetitionBaseURI(uint256 periodNum, uint256 competitionNum, string memory baseUri_) external onlyOwner {
-        address ticketAddr = _compTicket(periodNum, competitionNum);
+    function setCompetitionBaseURI(uint256 periodId, uint256 competitionId, string memory baseUri_) external onlyOwner {
+        address ticketAddr = _compTicket(periodId, competitionId);
         IZizyCompetitionTicket(ticketAddr).setBaseURI(baseUri_);
     }
 
     // Set competition description
-    function setCompetitionDescription(uint256 periodNum, uint256 competitionNum, string memory description_) external onlyOwner {
-        address ticketAddr = _compTicket(periodNum, competitionNum);
+    function setCompetitionDescription(uint256 periodId, uint256 competitionId, string memory description_) external onlyOwner {
+        address ticketAddr = _compTicket(periodId, competitionId);
         IZizyCompetitionTicket(ticketAddr).setDescription(description_);
     }
 
     // Get total supply of competition
-    function totalSupplyOfCompetition(uint256 periodNum, uint256 competitionNum) external view returns (uint256) {
-        address ticketAddr = _compTicket(periodNum, competitionNum);
+    function totalSupplyOfCompetition(uint256 periodId, uint256 competitionId) external view returns (uint256) {
+        address ticketAddr = _compTicket(periodId, competitionId);
         return IZizyCompetitionTicket(ticketAddr).totalSupply();
     }
 }
