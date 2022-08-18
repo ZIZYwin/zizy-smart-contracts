@@ -5,10 +5,10 @@ pragma solidity ^0.8.9;
 interface ICompetitionFactory {
     function totalPeriodCount() external view returns (uint);
     function totalCompetitionCount() external view returns (uint);
-    function createCompetitionPeriod(uint startTime_, uint endTime_, uint ticketBuyStart_, uint ticketBuyEnd_) external returns (uint256);
+    function createCompetitionPeriod(uint newPeriodId, uint startTime_, uint endTime_, uint ticketBuyStart_, uint ticketBuyEnd_) external returns (uint256);
     function updateCompetitionPeriod(uint periodId_, uint startTime_, uint endTime_, uint ticketBuyStart_, uint ticketBuyEnd_) external returns (bool);
-    function getPeriod(uint256 periodId) external view returns (uint, uint, uint, uint, uint16, bool);
-    function getAllocation(address account, uint256 periodId, uint16 competitionId) external view returns (uint32, uint32, bool);
+    function getPeriod(uint256 periodId) external view returns (uint, uint, uint, uint, uint16, bool, bool);
+    function getAllocation(address account, uint256 periodId, uint256 competitionId) external view returns (uint32, uint32, bool);
     function getPeriodEndTime(uint256 periodId) external view returns (uint);
     function hasParticipation(address account_, uint256 periodId_) external view returns (bool);
     function getPeriodCompetition(uint256 periodId, uint16 competitionId) external view returns (address, bool);

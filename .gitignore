@@ -20,3 +20,4 @@ typechain-types/**/*
 stages.txt
 *-flatten.sol
 .openzeppelin
+.openzeppelin-*

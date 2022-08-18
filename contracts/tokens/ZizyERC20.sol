@@ -19,7 +19,7 @@ contract ZizyERC20 is Context, ERC20, ERC20Burnable, ERC20Pausable, AccessContro
         _grantRole(PAUSER_ROLE, _msgSender());
         _setRoleAdmin(PAUSER_ROLE, DEFAULT_ADMIN_ROLE);
 
-        _mint(_msgSender(), (250_000_000 * (10 ** _decimals)));
+        _mint(_msgSender(), (350_000_000 * (10 ** _decimals)));
     }
 
     function setRoleAdmin(bytes32 role, bytes32 adminRole) public onlyRole(getRoleAdmin(role)) {

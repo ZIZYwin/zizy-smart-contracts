@@ -79,17 +79,17 @@ contract ZizyPoPaFactory is Ownable {
         address popaContract = _periodPopas[periodId_];
         require(popaContract != address(0), "Unknown period id");
 
-        require(_popaClaimed[msg.sender][periodId_] == false, "You already claimed this popa nft");
+        require(_popaClaimed[_msgSender()][periodId_] == false, "You already claimed this popa nft");
 
         ICompetitionFactory factory = ICompetitionFactory(competitionFactory);
 
-        require(factory.hasParticipation(msg.sender, periodId_) == true, "You hasn't participation for this period");
+        require(factory.hasParticipation(_msgSender(), periodId_) == true, "You hasn't participation for this period");
 
         IZizyPoPa popa = IZizyPoPa(popaContract);
 
-        _popaClaimed[msg.sender][periodId_] = true;
-        popa.mint(msg.sender);
-        emit PopaClaimed(msg.sender, periodId_);
+        _popaClaimed[_msgSender()][periodId_] = true;
+        popa.mint(_msgSender());
+        emit PopaClaimed(_msgSender(), periodId_);
     }
 
     // Get deployed contract count

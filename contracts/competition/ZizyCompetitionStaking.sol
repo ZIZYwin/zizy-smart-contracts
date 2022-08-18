@@ -5,6 +5,7 @@ pragma solidity ^0.8.9;
 import "@openzeppelin/contracts-upgradeable/token/ERC20/utils/SafeERC20Upgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/utils/math/SafeMathUpgradeable.sol";
+import "../utils/IERC20.sol";
 import "./ICompetitionFactory.sol";
 
 // @dev We building sth big. Stay tuned!
@@ -37,6 +38,9 @@ contract ZizyCompetitionStaking is OwnableUpgradeable {
         bool _calculated;
     }
 
+    // Smart burn supply limit
+    uint256 constant SMART_BURN_SUPPLY_LIMIT = 250_000_000_000_000_00;
+
     // Stake token address [Zizy]
     IERC20Upgradeable public stakeToken;
 
@@ -64,6 +68,8 @@ contract ZizyCompetitionStaking is OwnableUpgradeable {
     // Cooling off percentage
     uint8 public coolingOffPercentage;
 
+    uint256 public smartBurned;
+
     // Stake balances for address
     mapping(address => uint256) private balances;
     // Account => SnapshotID => Snapshot
@@ -83,6 +89,7 @@ contract ZizyCompetitionStaking is OwnableUpgradeable {
     event Stake(address account, uint256 amount, uint256 fee);
     event UnStake(address account, uint256 amount);
     event CoolingOffSettingsUpdated(uint8 percentage, uint8 day);
+    event SmartBurn(uint256 totalSupply, uint256 burnAmount);
 
     // Modifiers
     modifier onlyCallFromFactory() {
@@ -103,7 +110,7 @@ contract ZizyCompetitionStaking is OwnableUpgradeable {
 
     modifier whenCurrentPeriodInBuyStage() {
         uint ts = block.timestamp;
-        (uint start, uint end, uint ticketBuyStart, uint ticketBuyEnd, , bool exist) = _getPeriod(currentPeriod);
+        (uint start, uint end, uint ticketBuyStart, uint ticketBuyEnd, , , bool exist) = _getPeriod(currentPeriod);
         require(exist == true, "Period does not exist");
         require(_isInRange(ts, start, end) && _isInRange(ts, ticketBuyStart, ticketBuyEnd), "Currently not in the range that can be calculated");
         _;
@@ -120,6 +127,7 @@ contract ZizyCompetitionStaking is OwnableUpgradeable {
         snapshotId = 0;
         coolingOffDelay = 15 * 24 * 60 * 60;
         coolingOffPercentage = 15;
+        smartBurned = 0;
 
         stakeToken = IERC20Upgradeable(stakeToken_);
         feeAddress = feeReceiver_;
@@ -186,7 +194,7 @@ contract ZizyCompetitionStaking is OwnableUpgradeable {
     function snapshot() external onlyOwner {
         uint256 periodId = currentPeriod;
         uint ts = block.timestamp;
-        (uint start, uint end, uint ticketBuyStart, uint ticketBuyEnd, , bool exist) = _getPeriod(periodId);
+        (uint start, uint end, uint ticketBuyStart, uint ticketBuyEnd, , , bool exist) = _getPeriod(periodId);
 
         require(exist == true, "No active period exist");
         require(_isInRange(ts, start, end) && ts < ticketBuyStart && ts < ticketBuyEnd, "Snapshot can't taken for now");
@@ -285,25 +293,14 @@ contract ZizyCompetitionStaking is OwnableUpgradeable {
         emit Stake(msg.sender, stakeAmount, stakeFee);
     }
 
-    // Get period end time
-    function getPeriodEndTime(uint256 periodId_) public view returns (uint) {
-        (uint periodEnd) = ICompetitionFactory(competitionFactory).getPeriodEndTime(periodId_);
-        return periodEnd;
-    }
-
-    // Get period
-    function _getPeriod(uint256 periodId_) internal view returns (uint, uint, uint, uint, uint16, bool) {
+    // Get period from factory
+    function _getPeriod(uint256 periodId_) internal view returns (uint, uint, uint, uint, uint16, bool, bool) {
         return ICompetitionFactory(competitionFactory).getPeriod(periodId_);
-    }
-
-    // Get period
-    function getFactoryPeriod(uint256 periodId_) external view returns (uint, uint, uint, uint, uint16, bool) {
-        return _getPeriod(periodId_);
     }
 
     // Calculate un-stake free amount / cooling off fee amount
     function calculateUnStakeAmounts(uint requestAmount_) public view returns (uint, uint) {
-        (uint startTime, , , , ,bool exist) = _getPeriod(currentPeriod);
+        (uint startTime, , , , , , bool exist) = _getPeriod(currentPeriod);
         uint timestamp = block.timestamp;
         uint ET = coolingOffDelay;
         bool inCoolingOffPeriod = (block.timestamp < (startTime + ET));
@@ -339,19 +336,58 @@ contract ZizyCompetitionStaking is OwnableUpgradeable {
         // Update account details
         updateDetails(msg.sender, currentBalance, balanceOf(msg.sender));
 
+        totalStaked -= amount_;
+
+        // Distribute fee receiver & smart burn
+        if (fee > 0) {
+            _distributeFee(fee);
+        }
+
         // Transfer free tokens to user
         token.safeTransfer(msg.sender, free);
 
-        // Transfer fee's to receiver if exist
-        if (fee > 0) {
-            token.safeTransfer(address(feeAddress), fee);
-            emit UnStakeFeeReceived(fee);
-        }
-
-        totalStaked -= amount_;
-
         // Emit UnStake Event
         emit UnStake(msg.sender, amount_);
+    }
+
+    // Burn half of tokens, send remainings
+    function _distributeFee(uint256 amount) internal {
+        IERC20Upgradeable tokenSafe = stakeToken;
+        IERC20 token = IERC20(address(stakeToken));
+        uint256 supply = token.totalSupply();
+
+        uint256 burnAmount = amount / 2;
+        uint256 leftAmount = amount - burnAmount;
+
+        if ((supply - burnAmount) < SMART_BURN_SUPPLY_LIMIT) {
+            burnAmount = (supply % SMART_BURN_SUPPLY_LIMIT);
+            leftAmount = amount - burnAmount;
+        }
+
+        _smartBurn(token, supply, burnAmount);
+        _feeTransfer(tokenSafe, leftAmount);
+    }
+
+    // Transfer token to receiver with given amount
+    function _feeTransfer(IERC20Upgradeable token, uint256 amount) internal {
+        if (amount <= 0) {
+            return;
+        }
+
+        token.safeTransfer(address(feeAddress), amount);
+        emit UnStakeFeeReceived(amount);
+    }
+
+    // Burn given token with given amount
+    function _smartBurn(IERC20 token, uint256 supply, uint256 burnAmount) internal {
+        if (burnAmount <= 0) {
+            return;
+        }
+
+        token.burn(burnAmount);
+        smartBurned += burnAmount;
+
+        emit SmartBurn((supply - burnAmount), burnAmount);
     }
 
     // Get period stake average information
