@@ -55,7 +55,9 @@ async function main() {
 
   //region PoPa Factory - Deploy
   const ZizyPoPaFactory = await ethers.getContractFactory("ZizyPoPaFactory");
-  const ZizyPoPaFactoryContract = await ZizyPoPaFactory.deploy(CompetitionFactoryContract.address);
+  const ZizyPoPaFactoryContract = await upgrades.deployProxy(ZizyPoPaFactory, [CompetitionFactoryContract.address], {
+    initializer: "initialize"
+  });
   await ZizyPoPaFactoryContract.deployed();
   console.log("PoPa factory contract deployed to:", ZizyPoPaFactoryContract.address);
   //endregion

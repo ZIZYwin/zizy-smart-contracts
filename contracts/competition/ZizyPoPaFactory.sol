@@ -2,18 +2,18 @@
 
 pragma solidity ^0.8.9;
 
-import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "./ICompetitionFactory.sol";
 import "./IZizyPoPa.sol";
 import "./ZizyPoPa.sol";
 
 // @dev Zizy - PoPa Factory
-contract ZizyPoPaFactory is Ownable {
+contract ZizyPoPaFactory is OwnableUpgradeable {
     event PopaClaimed(address indexed claimer, uint256 periodId);
     event PopaDeployed(address contractAddress, uint256 periodId);
 
     address[] private _popas;
-    uint256 private popaCounter = 0;
+    uint256 private popaCounter;
 
     // Period popa nft's [periodId > PoPa contract]
     mapping(uint256 => address) private _periodPopas;
@@ -24,8 +24,13 @@ contract ZizyPoPaFactory is Ownable {
     // Competition factory contract
     address public competitionFactory;
 
-    constructor(address competitionFactory_) {
+    // Initializer
+    function initialize(address competitionFactory_) external initializer {
+        require(competitionFactory_ != address(0), "Contract address can not be zero");
         _setCompetitionFactory(competitionFactory_);
+
+        __Ownable_init();
+        popaCounter = 0;
     }
 
     // Is popa claimed ?

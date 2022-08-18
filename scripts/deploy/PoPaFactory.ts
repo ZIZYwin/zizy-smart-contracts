@@ -17,7 +17,9 @@ async function main() {
   const ZizyPoPaFactory = await ethers.getContractFactory("ZizyPoPaFactory", {
     signer: signerAccount
   });
-  const ZizyPoPaFactoryContract = await ZizyPoPaFactory.deploy(competitionFactoryContractAddress);
+  const ZizyPoPaFactoryContract = await upgrades.deployProxy(ZizyPoPaFactory, [competitionFactoryContractAddress], {
+    initializer: "initialize"
+  });
   await ZizyPoPaFactoryContract.deployed();
   console.log("PoPa Factory contract deployed to:", ZizyPoPaFactoryContract.address);
 }
