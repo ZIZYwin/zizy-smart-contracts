@@ -3,7 +3,7 @@
   "author": "Bilal - Zizy",
   "devDependencies": {
     "@nomiclabs/hardhat-waffle": "^2.0.3",
-    "@remix-project/remixd": "^0.6.1",
+    "@remix-project/remixd": "^0.6.5",
     "@typechain/hardhat": "^6.0.0",
     "@types/jest": "^27.5.1",
     "@types/mocha": "^9.1.1",
