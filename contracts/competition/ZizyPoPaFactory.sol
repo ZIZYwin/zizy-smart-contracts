@@ -70,7 +70,7 @@ contract ZizyPoPaFactory is Ownable {
 
         popaCounter++;
 
-        emit PopaDeployed(contractAddress, periodId);
+        emit PopaDeployed(contractAddress, periodId_);
         return (index, address(popa));
     }
 
