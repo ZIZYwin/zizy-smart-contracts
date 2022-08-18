@@ -7,13 +7,18 @@ async function main() {
   // Compile if contracts is not compiled
   await hre.run("compile");
 
+  const signers = await ethers.getSigners();
+  const signerAccount = signers[0];
+  const feePaymentReceiverMinter = signers[1];
+
   const ZizyToken = await ethers.getContractFactory("ZizyERC20");
-  const zizyTokenContractAddress = '0x5FbDB2315678afecb367f032d93F642f64180aa3';
+  const zizyTokenContractAddress = "0xbdEd0D2bf404bdcBa897a74E6657f1f12e5C6fb6";
   const ZizyTokenContract = await ZizyToken.attach(zizyTokenContractAddress);
 
   //region Competition Factory - Deploy
+  console.log(`Pay/Fee receiver & Minter: ${feePaymentReceiverMinter.address}`);
   const CompetitionFactory = await ethers.getContractFactory("CompetitionFactory");
-  const CompetitionFactoryContract = await upgrades.deployProxy(CompetitionFactory, [], {
+  const CompetitionFactoryContract = await upgrades.deployProxy(CompetitionFactory, [feePaymentReceiverMinter.address, feePaymentReceiverMinter.address], {
     initializer: "initialize"
   });
   await CompetitionFactoryContract.deployed();
@@ -22,7 +27,7 @@ async function main() {
 
   //region Staking Contract - Deploy
   const CompetitionStaking = await ethers.getContractFactory("ZizyCompetitionStaking");
-  const StakingContract = await upgrades.deployProxy(CompetitionStaking, [zizyTokenContractAddress], {
+  const StakingContract = await upgrades.deployProxy(CompetitionStaking, [zizyTokenContractAddress, feePaymentReceiverMinter.address], {
     initializer: "initialize"
   });
   await StakingContract.deployed();
@@ -31,9 +36,7 @@ async function main() {
 
   //region Ticket Deployer - Deploy
   const TicketDeployer = await ethers.getContractFactory("TicketDeployer");
-  const TicketDeployerContract = await upgrades.deployProxy(TicketDeployer, [CompetitionFactoryContract.address], {
-    initializer: "initialize"
-  });
+  const TicketDeployerContract = await TicketDeployer.deploy(CompetitionFactoryContract.address);
   await TicketDeployerContract.deployed();
   console.log("Ticket deployer contract deployed to:", TicketDeployerContract.address);
   //endregion
@@ -50,28 +53,32 @@ async function main() {
   });
   //endregion
 
+  //region PoPa Factory - Deploy
+  const ZizyPoPaFactory = await ethers.getContractFactory("ZizyPoPaFactory");
+  const ZizyPoPaFactoryContract = await ZizyPoPaFactory.deploy(CompetitionFactoryContract.address);
+  await ZizyPoPaFactoryContract.deployed();
+  console.log("PoPa factory contract deployed to:", ZizyPoPaFactoryContract.address);
+  //endregion
+
+  //region Rewards Hub - Deploy
+  console.log(`Reward Definer Acc: ${signerAccount.address}`);
+  const ZizyRewardsHub = await ethers.getContractFactory("ZizyRewardsHub");
+  const ZizyRewardsHubContract = await upgrades.deployProxy(ZizyRewardsHub, [signerAccount.address], {
+    initializer: "initialize"
+  });
+  await ZizyRewardsHubContract.deployed();
+  console.log("Rewards Hub contract deployed to:", ZizyRewardsHubContract.address);
+  //endregion
+
   /**
    * Development Purpose
    */
-  const currentDate = new Date();
-  const currentTimeInSeconds = Math.floor(currentDate.getTime() / 1000);
-  // Create 30days period
-  await CompetitionFactoryContract.createCompetitionPeriod(currentTimeInSeconds, (currentTimeInSeconds + (86400 * 30))).then(() => {
-    console.log(`Competition period #1 has created in 30 days period`);
-  });
 
   // Approve for stake
   await ZizyTokenContract.approve(StakingContract.address, 50000_00000000).then(() => {
     console.log(`Staking contract approved with 50000_00000000`);
   });
 
-  // await StakingContract.stake(10000_00000000).then(() => {
-  //   console.log(`Staking completed with 10000_00000000 token`);
-  // });
-
-  // await CompetitionFactoryContract.createCompetitionPeriod(1656055560, 1656655560);
-  // await CompetitionFactoryContract.createCompetition("Zizy Competition", "ZCMP", "Zizy car competition #0001");
-  // await CompetitionFactoryContract.createCompetition("Zizy Competition", "ZCMP", "Zizy bitcoin competition #0001");
 }
 
 // We recommend this pattern to be able to use async/await everywhere

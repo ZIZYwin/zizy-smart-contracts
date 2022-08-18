@@ -220,11 +220,18 @@ contract CompetitionFactory is OwnableUpgradeable, ReentrancyGuardUpgradeable {
 
     // Set active period
     function setActivePeriod(uint periodId) external onlyOwner {
+        uint256 oldPeriod = activePeriod;
+        require(oldPeriod != periodId, "This period already active");
         Period memory period = _periods[periodId];
         require(period._exist == true, "Period does not exist");
         require(period.isOver == false, "This period is over");
 
         activePeriod = periodId;
+
+        // Set is over previous period
+        if (oldPeriod != 0) {
+            _periods[oldPeriod].isOver = true;
+        }
     }
 
     // Create competition period
