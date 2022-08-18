@@ -251,6 +251,7 @@ contract CompetitionFactory is OwnableUpgradeable, ReentrancyGuardUpgradeable {
         }
 
         activePeriod = newPeriodId;
+        totalPeriodCount++;
 
         emit NewPeriod(newPeriodId);
 
