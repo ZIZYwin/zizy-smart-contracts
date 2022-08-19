@@ -176,6 +176,17 @@ contract ZizyRewardsHub is OwnableUpgradeable, ReentrancyGuardUpgradeable, ERC72
         _setCompetitionReward(periodId, competitionId, ticket_, ticketId_, chainId_, rewardType, rewardAddress_, amount, tokenId);
     }
 
+    // Define Batch Native coin rewards on competition
+    function setCompetitionNativeRewardBatch(uint256 periodId, uint256 competitionId, address ticket_, uint chainId_, uint[] calldata ticketIds_, uint[] calldata amounts_) external onlyRewardDefiner {
+        uint len = ticketIds_.length;
+        require(len > 0, "Rewards is not filled");
+        require(amounts_.length == len, "Rewards length does not match");
+
+        for (uint i = 0; i < len; ++i) {
+            _setCompetitionReward(periodId, competitionId, ticket_, ticketIds_[i], chainId_, RewardType.Native, address(0), amounts_[i], 0);
+        }
+    }
+
     // Define Batch ERC20-Standard token rewards on competition
     function setCompetitionTokenRewardBatch(uint256 periodId, uint256 competitionId, address ticket_, uint chainId_, address rewardAddress_, uint[] calldata ticketIds_, uint[] calldata amounts_) external onlyRewardDefiner {
         uint len = ticketIds_.length;
@@ -208,6 +219,17 @@ contract ZizyRewardsHub is OwnableUpgradeable, ReentrancyGuardUpgradeable, ERC72
     // Define airdrop reward
     function setAirdropReward(address receiver_, uint airdropId_, uint chainId_, RewardType rewardType, address rewardAddress_, uint amount, uint tokenId) external onlyRewardDefiner {
         _setAirdropReward(receiver_, airdropId_, chainId_, rewardType, rewardAddress_, amount, tokenId);
+    }
+
+    // Define Batch Native coin rewards on airdrop
+    function setAirdropNativeRewardBatch(uint airdropId_, uint chainId_, address[] calldata receivers_, uint[] calldata amounts_) external onlyRewardDefiner {
+        uint len = receivers_.length;
+        require(len > 0, "Rewards is not filled");
+        require(amounts_.length == len, "Rewards length does not match");
+
+        for (uint i = 0; i < len; ++i) {
+            _setAirdropReward(receivers_[i], airdropId_, chainId_, RewardType.Native, address(0), amounts_[i], 0);
+        }
     }
 
     // Define Batch ERC20-Standard token reward on airdrop
