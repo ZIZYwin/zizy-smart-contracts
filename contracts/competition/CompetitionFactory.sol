@@ -27,14 +27,8 @@ contract CompetitionFactory is OwnableUpgradeable, ReentrancyGuardUpgradeable {
         uint snapshotMin;
         uint snapshotMax;
         uint32 ticketSold;
-        bool buyActive;
+        bool pairDefined;
         bool _exist;
-    }
-
-    struct TicketBuyOptions {
-        uint buyStartDate;
-        uint buyEndDate;
-        bool isActive;
     }
 
     struct Period {
@@ -80,14 +74,14 @@ contract CompetitionFactory is OwnableUpgradeable, ReentrancyGuardUpgradeable {
     // Competition tiers [keccak(periodId,competitionId) > Tier]
     mapping(bytes32 => Tier[]) private _compTiers;
 
-    // Period ticket buy options
-    mapping(uint256 => TicketBuyOptions) private _ticketBuyOptions;
-
     // Competition allocations [address > periodId > competitionId > Allocation]
     mapping(address => mapping(uint256 => mapping(uint256 => Allocation))) private _allocations;
 
     // Period participations [Account > PeriodId > Status]
     mapping(address => mapping(uint256 => bool)) private _periodParticipation;
+
+    // Period competition ids collection
+    mapping(uint256 => uint256[]) private _periodCompetitionIds;
 
     // Throw if any active period exist on now
     modifier whenNotActivePeriod() {
@@ -137,6 +131,12 @@ contract CompetitionFactory is OwnableUpgradeable, ReentrancyGuardUpgradeable {
         ticketMinter = minter_;
     }
 
+    // Get competition id with index number of period
+    function getCompetitionIdWithIndex(uint256 periodId, uint index) external view returns (uint) {
+        require(index < _periodCompetitionIds[periodId].length, "Out of boundaries");
+        return _periodCompetitionIds[periodId][index];
+    }
+
     // Hash of period competition
     function _competitionKey(uint256 periodId, uint256 competitionId) internal pure returns (bytes32) {
         return keccak256(abi.encode(periodId, competitionId));
@@ -157,6 +157,34 @@ contract CompetitionFactory is OwnableUpgradeable, ReentrancyGuardUpgradeable {
     function setTicketMinter(address minter_) external onlyOwner {
         require(minter_ != address(0), "Minter address can not be zero");
         ticketMinter = minter_;
+    }
+
+    // Check ticket buy conditions for given competition & period
+    function canTicketBuy(uint256 periodId, uint256 competitionId) external view returns (bool) {
+        Competition memory comp = _periodCompetitions[periodId][competitionId];
+
+        // Check competition
+        if (comp._exist == false) {
+            return false;
+        }
+        // Check competition tiers
+        if (_isCompetitionTiersDefined(periodId, competitionId) == false) {
+            return false;
+        }
+        // Check sellToken & price
+        if (comp.pairDefined == false) {
+            return false;
+        }
+
+        uint ts = block.timestamp;
+        Period memory period = _periods[periodId];
+
+        // Ticket buy date's check
+        if (ts < period.ticketBuyStartTime || ts > period.ticketBuyEndTime) {
+            return false;
+        }
+
+        return true;
     }
 
     // Get competition allocation for account
@@ -292,6 +320,7 @@ contract CompetitionFactory is OwnableUpgradeable, ReentrancyGuardUpgradeable {
         // Increase competition counters
         _periods[periodId].competitionCount++;
         totalCompetitionCount++;
+        _periodCompetitionIds[periodId].push(competitionId);
 
         // Emit new competition event
         emit NewCompetition(periodId, competitionId, address(competition));
@@ -305,7 +334,7 @@ contract CompetitionFactory is OwnableUpgradeable, ReentrancyGuardUpgradeable {
         require(ticketPrice > 0, "Ticket price can not be zero");
 
         Competition storage comp = _periodCompetitions[periodId][competitionId];
-        comp.buyActive = true;
+        comp.pairDefined = true;
         comp.sellToken = token;
         comp.ticketPrice = ticketPrice;
     }
@@ -320,6 +349,12 @@ contract CompetitionFactory is OwnableUpgradeable, ReentrancyGuardUpgradeable {
 
         comp.snapshotMin = min;
         comp.snapshotMax = max;
+    }
+
+    // Is competition tiers defined
+    function _isCompetitionTiersDefined(uint256 periodId, uint256 competitionId) internal view returns (bool) {
+        bytes32 compHash = _competitionKey(periodId, competitionId);
+        return (_compTiers[compHash].length > 0);
     }
 
     // Set competition tiers
@@ -356,7 +391,7 @@ contract CompetitionFactory is OwnableUpgradeable, ReentrancyGuardUpgradeable {
     function buyTicket(uint256 periodId, uint256 competitionId, uint32 ticketCount) external paymentReceiverIsSet nonReentrant {
         require(ticketCount > 0, "Requested ticket count should be higher than zero");
         Competition memory comp = _periodCompetitions[periodId][competitionId];
-        require(comp.buyActive == true, "Buy ticket is not active yet");
+        require(comp.pairDefined == true, "Ticket sell pair is not defined");
         require((comp.ticketSold + ticketCount) <= MAX_TICKET_PER_COMPETITION, "Tickets are out of stock for this competition");
 
         Allocation memory alloc = _getAllocation(_msgSender(), periodId, competitionId);

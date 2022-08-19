@@ -7,6 +7,7 @@ interface ICompetitionFactory {
     function totalCompetitionCount() external view returns (uint);
     function createCompetitionPeriod(uint newPeriodId, uint startTime_, uint endTime_, uint ticketBuyStart_, uint ticketBuyEnd_) external returns (uint256);
     function updateCompetitionPeriod(uint periodId_, uint startTime_, uint endTime_, uint ticketBuyStart_, uint ticketBuyEnd_) external returns (bool);
+    function getCompetitionIdWithIndex(uint256 periodId, uint index) external view returns (uint);
     function getPeriod(uint256 periodId) external view returns (uint, uint, uint, uint, uint16, bool, bool);
     function getAllocation(address account, uint256 periodId, uint256 competitionId) external view returns (uint32, uint32, bool);
     function getPeriodEndTime(uint256 periodId) external view returns (uint);
