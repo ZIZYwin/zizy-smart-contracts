@@ -11,6 +11,7 @@ import "./ZizyPoPa.sol";
 contract ZizyPoPaFactory is OwnableUpgradeable {
     event PopaClaimed(address indexed claimer, uint256 periodId);
     event PopaDeployed(address contractAddress, uint256 periodId);
+    event AllocationPercentageUpdated(uint percentage);
 
     address[] private _popas;
     uint256 private popaCounter;
@@ -20,6 +21,9 @@ contract ZizyPoPaFactory is OwnableUpgradeable {
 
     // Popa claim states [Account > PeriodId > State]
     mapping(address => mapping(uint256 => bool)) private _popaClaimed;
+
+    // Popa claim allocation percentage
+    uint private _popaClaimAllocationPercentage;
 
     // Competition factory contract
     address public competitionFactory;
@@ -31,6 +35,19 @@ contract ZizyPoPaFactory is OwnableUpgradeable {
 
         __Ownable_init();
         popaCounter = 0;
+        _popaClaimAllocationPercentage = 10;
+    }
+
+    // Set popa claim allocation percentage
+    function setPopaClaimAllocationPercentage(uint percentage) external onlyOwner {
+        _setPopaClaimAllocationPercentage(percentage);
+    }
+
+    // Set popa claim allocation percentage
+    function _setPopaClaimAllocationPercentage(uint percentage) internal {
+        require(percentage >= 0 && percentage <= 100, "Allocation percentage should between 0-100");
+        _popaClaimAllocationPercentage = percentage;
+        emit AllocationPercentageUpdated(percentage);
     }
 
     // Is popa claimed ?
@@ -86,15 +103,58 @@ contract ZizyPoPaFactory is OwnableUpgradeable {
 
         require(_popaClaimed[_msgSender()][periodId_] == false, "You already claimed this popa nft");
 
-        ICompetitionFactory factory = ICompetitionFactory(competitionFactory);
-
-        require(factory.hasParticipation(_msgSender(), periodId_) == true, "You hasn't participation for this period");
+        bool canClaim = _claimableCheck(_msgSender(), periodId_);
+        require(canClaim == true, "Claim conditions not met");
 
         IZizyPoPa popa = IZizyPoPa(popaContract);
 
         _popaClaimed[_msgSender()][periodId_] = true;
         popa.mint(_msgSender());
         emit PopaClaimed(_msgSender(), periodId_);
+    }
+
+    // User popa claim conditions check
+    function claimableCheck(address account, uint256 periodId) external view returns (bool) {
+        return _claimableCheck(account, periodId);
+    }
+
+    // User popa claim conditions check
+    function _claimableCheck(address account, uint256 periodId) internal view returns (bool) {
+        // User already claimed PoPa
+        if (_popaClaimed[account][periodId] == true) {
+            return false;
+        }
+
+        uint percentage = _popaClaimAllocationPercentage;
+        ICompetitionFactory factory = ICompetitionFactory(competitionFactory);
+
+        // Check period participation
+        if (factory.hasParticipation(account, periodId) == false) {
+            return false;
+        }
+
+        // If allocation percentage condition is zero, account can claim the PoPa
+        if (percentage == 0) {
+            return true;
+        }
+
+        uint periodCompCount = factory.getPeriodCompetitionCount(periodId);
+        for (uint i = 0; i < periodCompCount; ++i) {
+            uint compId = factory.getCompetitionIdWithIndex(periodId, i);
+            (uint32 bought, uint32 max, bool hasAlloc) = factory.getAllocation(account, periodId, compId);
+
+            // User hasn't participated all competitions
+            if (hasAlloc == false || bought == 0) {
+                return false;
+            }
+
+            // User didn't bought enough ticket for competition
+            if (bought < ((max * percentage) / 100)) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     // Get deployed contract count
