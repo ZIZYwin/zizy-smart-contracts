@@ -83,18 +83,6 @@ contract CompetitionFactory is OwnableUpgradeable, ReentrancyGuardUpgradeable {
     // Period competition ids collection
     mapping(uint256 => uint256[]) private _periodCompetitionIds;
 
-    // Throw if any active period exist on now
-    modifier whenNotActivePeriod() {
-        uint256 cPeriod = activePeriod;
-
-        if (cPeriod == 0) {
-            // Check current isn't exist
-            require(_periods[cPeriod]._exist == false, "ZizyComp: Period exist");
-        }
-        require(_periods[cPeriod].endTime < block.timestamp, "ZizyComp: Current period isn't completed");
-        _;
-    }
-
     // Throw if staking contract isn't defined
     modifier stakeContractIsSet {
         require(address(stakingContract) != address(0), "ZizyComp: Staking contract should be defined");
@@ -247,12 +235,20 @@ contract CompetitionFactory is OwnableUpgradeable, ReentrancyGuardUpgradeable {
     }
 
     // Set active period
-    function setActivePeriod(uint periodId) external onlyOwner {
+    function setActivePeriod(uint periodId) external stakeContractIsSet onlyOwner {
         uint256 oldPeriod = activePeriod;
         require(oldPeriod != periodId, "This period already active");
         Period memory period = _periods[periodId];
         require(period._exist == true, "Period does not exist");
         require(period.isOver == false, "This period is over");
+
+        (uint256 response) = stakingContract.setPeriodId(periodId);
+        require(response == periodId, "ZizyComp: Staking contract period can't updated");
+
+        // Set previous period is over !
+        if (oldPeriod != 0) {
+            _periods[oldPeriod].isOver = true;
+        }
 
         activePeriod = periodId;
 
@@ -263,22 +259,12 @@ contract CompetitionFactory is OwnableUpgradeable, ReentrancyGuardUpgradeable {
     }
 
     // Create competition period
-    function createPeriod(uint newPeriodId, uint startTime_, uint endTime_, uint ticketBuyStart_, uint ticketBuyEnd_) external whenNotActivePeriod stakeContractIsSet onlyOwner returns (uint256) {
-        uint256 oldPeriodId = activePeriod;
+    function createPeriod(uint newPeriodId, uint startTime_, uint endTime_, uint ticketBuyStart_, uint ticketBuyEnd_) external stakeContractIsSet onlyOwner returns (uint256) {
         require(newPeriodId > 0, "New period id should be higher than zero");
         require(_periods[newPeriodId]._exist == false, "Period id already exist");
 
-        (uint256 response) = stakingContract.setPeriodId(newPeriodId);
-        require(response == newPeriodId, "ZizyComp: Staking contract period can't updated");
-
         _periods[newPeriodId] = Period(startTime_, endTime_, ticketBuyStart_, ticketBuyEnd_, 0, false, true);
 
-        // Set previous period is over !
-        if (oldPeriodId != 0) {
-            _periods[oldPeriodId].isOver = true;
-        }
-
-        activePeriod = newPeriodId;
         totalPeriodCount++;
 
         emit NewPeriod(newPeriodId);

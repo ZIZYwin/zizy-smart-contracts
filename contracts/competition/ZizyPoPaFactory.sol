@@ -113,6 +113,11 @@ contract ZizyPoPaFactory is OwnableUpgradeable {
         emit PopaClaimed(_msgSender(), periodId_);
     }
 
+    // Get participation percentage condition
+    function allocationPercentage() external view returns (uint) {
+        return _popaClaimAllocationPercentage;
+    }
+
     // User popa claim conditions check
     function claimableCheck(address account, uint256 periodId) external view returns (bool) {
         return _claimableCheck(account, periodId);

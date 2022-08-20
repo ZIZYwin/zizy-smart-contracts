@@ -12,7 +12,7 @@ async function main() {
   const feePaymentReceiverMinter = signers[1];
 
   const ZizyToken = await ethers.getContractFactory("ZizyERC20");
-  const zizyTokenContractAddress = "0xbdEd0D2bf404bdcBa897a74E6657f1f12e5C6fb6";
+  const zizyTokenContractAddress = "0x9A9f2CCfdE556A7E9Ff0848998Aa4a0CFD8863AE";
   const ZizyTokenContract = await ZizyToken.attach(zizyTokenContractAddress);
 
   //region Competition Factory - Deploy

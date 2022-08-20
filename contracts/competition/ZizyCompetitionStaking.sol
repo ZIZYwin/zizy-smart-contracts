@@ -63,11 +63,15 @@ contract ZizyCompetitionStaking is OwnableUpgradeable {
     uint256 public totalStaked;
 
     // Cooling off delay time
-    uint256 public coolingOffDelay;
+    uint256 public coolingDelay;
+
+    // Coolest delay for unstake
+    uint256 public coolestDelay;
 
     // Cooling off percentage
-    uint8 public coolingOffPercentage;
+    uint8 public coolingPercentage;
 
+    // Smart burn token amount
     uint256 public smartBurned;
 
     // Stake balances for address
@@ -88,12 +92,12 @@ contract ZizyCompetitionStaking is OwnableUpgradeable {
     event SnapshotCreated(uint256 id, uint256 periodId);
     event Stake(address account, uint256 amount, uint256 fee);
     event UnStake(address account, uint256 amount);
-    event CoolingOffSettingsUpdated(uint8 percentage, uint8 day);
+    event CoolingOffSettingsUpdated(uint8 percentage, uint8 coolingDay, uint8 coolestDay);
     event SmartBurn(uint256 totalSupply, uint256 burnAmount);
 
     // Modifiers
     modifier onlyCallFromFactory() {
-        require(msg.sender == competitionFactory, "Only call from factory");
+        require(_msgSender() == competitionFactory, "Only call from factory");
         _;
     }
 
@@ -125,25 +129,22 @@ contract ZizyCompetitionStaking is OwnableUpgradeable {
         stakeFeePercentage = 2;
         currentPeriod = 0;
         snapshotId = 0;
-        coolingOffDelay = 15 * 24 * 60 * 60;
-        coolingOffPercentage = 15;
+        coolingDelay = 15 * 24 * 60 * 60;
+        coolestDelay = 15 * 24 * 60 * 60;
+        coolingPercentage = 15;
         smartBurned = 0;
 
         stakeToken = IERC20Upgradeable(stakeToken_);
         feeAddress = feeReceiver_;
     }
 
-    // Get current snapshot id
-    function getSnapshotId() external view returns (uint256) {
-        return snapshotId;
-    }
-
     // Update un-stake cooling off settings
-    function updateCoolingOffSettings(uint8 percentage_, uint8 day_) external onlyOwner {
+    function updateCoolingOffSettings(uint8 percentage_, uint8 coolingDay_, uint8 coolestDay_) external onlyOwner {
         require(percentage_ >= 0 && percentage_ <= 100, "Percentage should be in 0-100 range");
-        coolingOffPercentage = percentage_;
-        coolingOffDelay = (uint256(day_) * 24 * 60 * 60);
-        emit CoolingOffSettingsUpdated(percentage_, day_);
+        coolingPercentage = percentage_;
+        coolingDelay = (uint256(coolingDay_) * 24 * 60 * 60);
+        coolestDelay = (uint256(coolestDay_) * 24 * 60 * 60);
+        emit CoolingOffSettingsUpdated(percentage_, coolingDay_, coolestDay_);
     }
 
     // Get activity details for account
@@ -264,12 +265,12 @@ contract ZizyCompetitionStaking is OwnableUpgradeable {
     // Stake tokens
     function stake(uint256 amount_) external whenPeriodExist whenFeeAddressExist {
         IERC20Upgradeable token = stakeToken;
-        uint256 currentBalance = balanceOf(msg.sender);
-        require(amount_ <= token.balanceOf(msg.sender), "Insufficient balance");
-        require(amount_ <= token.allowance(msg.sender, address(this)), "Insufficient allowance amount for stake");
+        uint256 currentBalance = balanceOf(_msgSender());
+        require(amount_ <= token.balanceOf(_msgSender()), "Insufficient balance");
+        require(amount_ <= token.allowance(_msgSender(), address(this)), "Insufficient allowance amount for stake");
 
         // Transfer tokens from callee to contract
-        token.safeTransferFrom(msg.sender, address(this), amount_);
+        token.safeTransferFrom(_msgSender(), address(this), amount_);
 
         // Calculate fee [(A * P) / 100]
         uint256 stakeFee = (amount_ * stakeFeePercentage) / 100;
@@ -277,7 +278,7 @@ contract ZizyCompetitionStaking is OwnableUpgradeable {
         uint256 stakeAmount = amount_ - stakeFee;
 
         // Increase caller balance
-        balances[msg.sender] += stakeAmount;
+        balances[_msgSender()] += stakeAmount;
 
         // Send stake fee to receiver address if exist
         if (stakeFee > 0) {
@@ -288,9 +289,9 @@ contract ZizyCompetitionStaking is OwnableUpgradeable {
         totalStaked += stakeAmount;
 
         // Update account details
-        updateDetails(msg.sender, currentBalance, balanceOf(msg.sender));
+        updateDetails(_msgSender(), currentBalance, balanceOf(_msgSender()));
         // Emit Stake Event
-        emit Stake(msg.sender, stakeAmount, stakeFee);
+        emit Stake(_msgSender(), stakeAmount, stakeFee);
     }
 
     // Get period from factory
@@ -302,21 +303,33 @@ contract ZizyCompetitionStaking is OwnableUpgradeable {
     function calculateUnStakeAmounts(uint requestAmount_) public view returns (uint, uint) {
         (uint startTime, , , , , , bool exist) = _getPeriod(currentPeriod);
         uint timestamp = block.timestamp;
-        uint ET = coolingOffDelay;
-        bool inCoolingOffPeriod = (block.timestamp < (startTime + ET));
+        uint CD = coolingDelay;
+        uint CSD = coolestDelay;
+        uint percentage = coolingPercentage;
 
         uint fee_ = 0;
         uint amount_ = requestAmount_;
 
-        if (!exist || !inCoolingOffPeriod || startTime >= timestamp || ET == 0) {
+        // Unstake all if period does not exist or cooling delays isn't defined
+        if (!exist || (CD == 0 && CSD == 0)) {
+            return (fee_, amount_);
+        }
+
+        if (timestamp < (startTime + CSD) || startTime >= timestamp) {
+            // In coolest period
+            fee_ = (requestAmount_ * percentage) / 100;
+            amount_ = requestAmount_ - fee_;
+        } else if (timestamp >= (startTime + CSD) && timestamp <= (startTime + CSD + CD)) {
+            // In cooling period
+            uint LCB = (requestAmount_ * percentage) / 100;
+            uint RF = ((timestamp - (startTime + CSD)) * LCB / CD);
+
+            amount_ = (requestAmount_ - (LCB - RF));
+            fee_ = requestAmount_ - amount_;
+        } else {
+            // Account can unstake his all balance
             fee_ = 0;
             amount_ = requestAmount_;
-        } else {
-            uint NT = timestamp - startTime;
-            uint CB = (requestAmount_ * coolingOffPercentage) / 100;
-
-            amount_ = (requestAmount_ - CB) + (NT * CB / ET);
-            fee_ = requestAmount_ - amount_;
         }
 
         return (fee_, amount_);
@@ -324,17 +337,17 @@ contract ZizyCompetitionStaking is OwnableUpgradeable {
 
     // Un-stake tokens
     function unStake(uint256 amount_) external whenFeeAddressExist {
-        uint256 currentBalance = balanceOf(msg.sender);
+        uint256 currentBalance = balanceOf(_msgSender());
         require(amount_ <= currentBalance, "Insufficient balance for unstake");
         require(amount_ > 0, "Amount should higher than zero");
 
         IERC20Upgradeable token = stakeToken;
 
-        balances[msg.sender] = balances[msg.sender].sub(amount_);
+        balances[_msgSender()] = balances[_msgSender()].sub(amount_);
         (uint fee, uint free) = calculateUnStakeAmounts(amount_);
 
         // Update account details
-        updateDetails(msg.sender, currentBalance, balanceOf(msg.sender));
+        updateDetails(_msgSender(), currentBalance, balanceOf(_msgSender()));
 
         totalStaked -= amount_;
 
@@ -344,10 +357,10 @@ contract ZizyCompetitionStaking is OwnableUpgradeable {
         }
 
         // Transfer free tokens to user
-        token.safeTransfer(msg.sender, free);
+        token.safeTransfer(_msgSender(), free);
 
         // Emit UnStake Event
-        emit UnStake(msg.sender, amount_);
+        emit UnStake(_msgSender(), amount_);
     }
 
     // Burn half of tokens, send remainings
@@ -432,7 +445,7 @@ contract ZizyCompetitionStaking is OwnableUpgradeable {
     // Calculate period stake average for account
     function calculatePeriodStakeAverage() public whenPeriodExist whenCurrentPeriodInBuyStage {
         uint256 periodId = currentPeriod;
-        (, bool calculated) = _getPeriodStakeAverage(msg.sender, periodId);
+        (, bool calculated) = _getPeriodStakeAverage(_msgSender(), periodId);
 
         require(calculated == false, "Already calculated");
 
@@ -447,11 +460,11 @@ contract ZizyCompetitionStaking is OwnableUpgradeable {
         uint256 lastSnapshot = snapshotId;
 
         for (uint i = lastSnapshot; i >= firstSnapshot; --i) {
-            Snapshot memory shot = snapshots[msg.sender][i];
+            Snapshot memory shot = snapshots[_msgSender()][i];
 
             // Update snapshot balance
             if (i == lastSnapshot) {
-                shotBalance = balances[msg.sender];
+                shotBalance = balances[_msgSender()];
             } else if (shot._exist == true) {
                 shotBalance = shot.balance;
                 nextIB = shot.prevSnapshotBalance;
@@ -468,9 +481,9 @@ contract ZizyCompetitionStaking is OwnableUpgradeable {
             shot.balance = shotBalance;
             shot._exist = true;
 
-            snapshots[msg.sender][i] = shot;
+            snapshots[_msgSender()][i] = shot;
         }
 
-        averages[msg.sender][periodId] = PeriodStakeAverage((total / (lastSnapshot - firstSnapshot + 1)), true);
+        averages[_msgSender()][periodId] = PeriodStakeAverage((total / (lastSnapshot - firstSnapshot + 1)), true);
     }
 }

@@ -7,7 +7,7 @@ async function main() {
 
   const signers = await ethers.getSigners();
 
-  const signerAccount = signers[4];
+  const signerAccount = signers[0];
   console.log(`Signer account : ${signerAccount.address}`);
 
   // We get the contract to deploy
