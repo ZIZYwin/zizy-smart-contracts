@@ -15,9 +15,9 @@ contract ZizyRewardsHub is OwnableUpgradeable, ReentrancyGuardUpgradeable, ERC72
 
     event CompRewardDefined(address indexed ticket, uint256 ticketId);
     event CompRewardUpdated(address indexed ticket, uint256 ticketId);
-    event AirdropRewardDefined(address indexed receiver, uint256 airdropId);
-    event AirdropRewardUpdated(address indexed receiver, uint256 airdropId);
-    event AirdropRewardClaimed(uint256 indexed airdropId, RewardType rewardType, address rewardAddress, address receiver, uint amount, uint tokenId);
+    event AirdropRewardDefined(address indexed receiver, uint rewardIndex, uint256 airdropId);
+    event AirdropRewardUpdated(address indexed receiver, uint rewardIndex, uint256 airdropId);
+    event AirdropRewardClaimed(uint256 indexed airdropId, uint rewardIndex, RewardType rewardType, address rewardAddress, address receiver, uint amount, uint tokenId);
     event AirdropRewardClaimedOnDiffChain(uint256 indexed airdropId, RewardType rewardType, address rewardAddress, address receiver, uint chainId, uint amount, uint tokenId);
     event CompRewardClaimed(uint256 periodId, uint256 competitionId, RewardType rewardType, address rewardAddress, address receiver, uint amount, uint tokenId);
     event CompRewardClaimedOnDiffChain(uint256 periodId, uint256 competitionId, RewardType rewardType, address rewardAddress, address receiver, uint chainId, uint amount, uint tokenId);
@@ -51,12 +51,12 @@ contract ZizyRewardsHub is OwnableUpgradeable, ReentrancyGuardUpgradeable, ERC72
     // Competition reward sources [TicketNFTAddress > TokenID > CompRewardSource]
     mapping(address => mapping(uint256 => CompRewardSource)) private _compRewardSource;
 
-    // Airdrop rewards [Account > AirdropID > Reward]
-    mapping(address => mapping(uint256 => Reward)) private _airdropRewards;
+    // Airdrop rewards [Account > AirdropID > Reward[]]
+    mapping(address => mapping(uint256 => Reward[])) private _airdropRewards;
 
     // Throw if caller isn't reward definer address
     modifier onlyRewardDefiner() {
-        require(msg.sender == rewardDefiner, "Only call from reward definer !");
+        require(_msgSender() == rewardDefiner, "Only call from reward definer !");
         _;
     }
 
@@ -97,8 +97,8 @@ contract ZizyRewardsHub is OwnableUpgradeable, ReentrancyGuardUpgradeable, ERC72
     // Deposit reward tokens to contract
     function depositToken(address token_, uint amount) external onlyOwner {
         IERC20Upgradeable token = IERC20Upgradeable(token_);
-        require(token.allowance(msg.sender, address(this)) >= amount, "Insufficient allowance");
-        token.safeTransferFrom(msg.sender, address(this), amount);
+        require(token.allowance(_msgSender(), address(this)) >= amount, "Insufficient allowance");
+        token.safeTransferFrom(_msgSender(), address(this), amount);
     }
 
     // Withdraw ERC20-Standards token
@@ -121,7 +121,7 @@ contract ZizyRewardsHub is OwnableUpgradeable, ReentrancyGuardUpgradeable, ERC72
     // Deposit reward NFT's to contract
     function depositNFT(address token_, uint tokenId_) external onlyOwner {
         IERC721Upgradeable nft = IERC721Upgradeable(token_);
-        nft.safeTransferFrom(msg.sender, address(this), tokenId_);
+        nft.safeTransferFrom(_msgSender(), address(this), tokenId_);
     }
 
     // Withdraw ERC721-Standard token
@@ -162,9 +162,9 @@ contract ZizyRewardsHub is OwnableUpgradeable, ReentrancyGuardUpgradeable, ERC72
         }
 
         if (reward._exist == true) {
-            emit CompRewardDefined(ticket_, ticketId_);
-        } else {
             emit CompRewardUpdated(ticket_, ticketId_);
+        } else {
+            emit CompRewardDefined(ticket_, ticketId_);
         }
 
         _compRewardSource[ticket_][ticketId_] = CompRewardSource(periodId, competitionId);
@@ -200,20 +200,15 @@ contract ZizyRewardsHub is OwnableUpgradeable, ReentrancyGuardUpgradeable, ERC72
 
     // Set single airdrop reward
     function _setAirdropReward(address receiver_, uint airdropId_, uint chainId_, RewardType rewardType, address rewardAddress_, uint amount, uint tokenId) internal {
-        Reward memory reward = _airdropRewards[receiver_][airdropId_];
-        require(reward.isClaimed == false, "Cant update claimed reward !");
+        uint airdropRewardCount = _airdropRewards[receiver_][airdropId_].length;
 
         if (rewardType == RewardType.Token || rewardType == RewardType.NFT) {
             require(rewardAddress_ != address(0), "Token or NFT reward must has contract address");
         }
 
-        if (reward._exist == true) {
-            emit AirdropRewardDefined(receiver_, airdropId_);
-        } else {
-            emit AirdropRewardUpdated(receiver_, airdropId_);
-        }
+        emit AirdropRewardDefined(receiver_, airdropRewardCount, airdropId_);
 
-        _airdropRewards[receiver_][airdropId_] = Reward(chainId_, rewardType, rewardAddress_, amount, tokenId, false, true);
+        _airdropRewards[receiver_][airdropId_].push(Reward(chainId_, rewardType, rewardAddress_, amount, tokenId, false, true));
     }
 
     // Define airdrop reward
@@ -243,35 +238,6 @@ contract ZizyRewardsHub is OwnableUpgradeable, ReentrancyGuardUpgradeable, ERC72
         }
     }
 
-    // Claim airdrop reward
-    function claimAirdropReward(uint airdropId_) external nonReentrant {
-        Reward memory rew = _airdropRewards[msg.sender][airdropId_];
-        require(rew._exist == true, "Reward does not exist");
-        require(rew.isClaimed == false, "Reward already claimed");
-
-        _airdropRewards[msg.sender][airdropId_].isClaimed = true;
-
-        if (rew.chainId != chainId()) {
-            // Reward isn't in current chain
-            emit AirdropRewardClaimedOnDiffChain(airdropId_, rew.rewardType, rew.rewardAddress, msg.sender, rew.chainId, rew.amount, rew.tokenId);
-        } else {
-            // Reward is in current chain
-
-            if (rew.rewardType == RewardType.Token) {
-                // ERC20 Transfer
-                _sendToken(msg.sender, rew.rewardAddress, rew.amount);
-            } else if (rew.rewardType == RewardType.NFT) {
-                // ERC721 Transfer
-                _sendNFT(msg.sender, rew.rewardAddress, rew.tokenId);
-            } else if (rew.rewardType == RewardType.Native) {
-                // Native Transfer
-                _sendNativeCoin(payable(msg.sender), rew.amount);
-            }
-
-            emit AirdropRewardClaimed(airdropId_, rew.rewardType, rew.rewardAddress, msg.sender, rew.amount, rew.tokenId);
-        }
-    }
-
     // Claim competition rewards
     function claimCompetitionReward(address ticketContract_, uint ticketId_) external nonReentrant {
         Reward memory rew = _competitionRewards[ticketContract_][ticketId_];
@@ -279,7 +245,7 @@ contract ZizyRewardsHub is OwnableUpgradeable, ReentrancyGuardUpgradeable, ERC72
         require(rew.isClaimed == false, "Reward already claimed");
 
         IERC721Upgradeable ticket = IERC721Upgradeable(ticketContract_);
-        require(ticket.ownerOf(ticketId_) == msg.sender, "You are not owner of this ticket");
+        require(ticket.ownerOf(ticketId_) == _msgSender(), "You are not owner of this ticket");
 
         _competitionRewards[ticketContract_][ticketId_].isClaimed = true;
 
@@ -287,32 +253,88 @@ contract ZizyRewardsHub is OwnableUpgradeable, ReentrancyGuardUpgradeable, ERC72
 
         if (rew.chainId != chainId()) {
             // Reward isn't in current chain
-            emit CompRewardClaimedOnDiffChain(rewSource.periodId, rewSource.competitionId, rew.rewardType, rew.rewardAddress, msg.sender, rew.chainId, rew.amount, rew.tokenId);
+            emit CompRewardClaimedOnDiffChain(rewSource.periodId, rewSource.competitionId, rew.rewardType, rew.rewardAddress, _msgSender(), rew.chainId, rew.amount, rew.tokenId);
         } else {
             // Reward is in current chain
 
             if (rew.rewardType == RewardType.Token) {
                 // ERC20 Transfer
-                _sendToken(msg.sender, rew.rewardAddress, rew.amount);
+                _sendToken(_msgSender(), rew.rewardAddress, rew.amount);
             } else if (rew.rewardType == RewardType.NFT) {
                 // ERC721 Transfer
-                _sendNFT(msg.sender, rew.rewardAddress, rew.tokenId);
+                _sendNFT(_msgSender(), rew.rewardAddress, rew.tokenId);
             } else if (rew.rewardType == RewardType.Native) {
                 // Native Transfer
-                _sendNativeCoin(payable(msg.sender), rew.amount);
+                _sendNativeCoin(payable(_msgSender()), rew.amount);
             }
 
-            emit CompRewardClaimed(rewSource.periodId, rewSource.competitionId, rew.rewardType, rew.rewardAddress, msg.sender, rew.amount, rew.tokenId);
+            emit CompRewardClaimed(rewSource.periodId, rewSource.competitionId, rew.rewardType, rew.rewardAddress, _msgSender(), rew.amount, rew.tokenId);
         }
-    }
-
-    // Get airdrop reward
-    function getAirdropReward(address receiver_, uint airdropId_) external view returns (Reward memory) {
-        return _airdropRewards[receiver_][airdropId_];
     }
 
     // Get competition reward
     function getCompetitionReward(address ticketContract_, uint ticketId_) external view returns (Reward memory) {
         return _competitionRewards[ticketContract_][ticketId_];
+    }
+
+    // Get airdrop reward count
+    function getAirdropRewardCount(address receiver_, uint airdropId_) public view returns (uint) {
+        return _airdropRewards[receiver_][airdropId_].length;
+    }
+
+    // Claim airdrop reward
+    function claimAirdropReward(uint airdropId_, uint rewardIndex) external nonReentrant {
+        uint rewardCount = getAirdropRewardCount(_msgSender(), airdropId_);
+        require(rewardIndex < rewardCount, "Reward index out of boundaries");
+
+        Reward memory rew = _airdropRewards[_msgSender()][airdropId_][rewardIndex];
+        require(rew._exist == true, "Reward does not exist");
+        require(rew.isClaimed == false, "Reward already claimed");
+
+        _airdropRewards[_msgSender()][airdropId_][rewardIndex].isClaimed = true;
+
+        if (rew.chainId != chainId()) {
+            // Reward isn't in current chain
+            emit AirdropRewardClaimedOnDiffChain(airdropId_, rew.rewardType, rew.rewardAddress, _msgSender(), rew.chainId, rew.amount, rew.tokenId);
+        } else {
+            // Reward is in current chain
+
+            if (rew.rewardType == RewardType.Token) {
+                // ERC20 Transfer
+                _sendToken(_msgSender(), rew.rewardAddress, rew.amount);
+            } else if (rew.rewardType == RewardType.NFT) {
+                // ERC721 Transfer
+                _sendNFT(_msgSender(), rew.rewardAddress, rew.tokenId);
+            } else if (rew.rewardType == RewardType.Native) {
+                // Native Transfer
+                _sendNativeCoin(payable(_msgSender()), rew.amount);
+            }
+
+            emit AirdropRewardClaimed(airdropId_, rewardIndex, rew.rewardType, rew.rewardAddress, _msgSender(), rew.amount, rew.tokenId);
+        }
+    }
+
+    // Get airdrop reward
+    function getAirdropReward(address receiver_, uint airdropId_, uint rewardIndex) external view returns (Reward memory) {
+        uint rewardCount = getAirdropRewardCount(receiver_, airdropId_);
+        require(rewardIndex < rewardCount, "Reward index out of boundaries");
+        return _airdropRewards[receiver_][airdropId_][rewardIndex];
+    }
+
+    // Remove airdrop reward. For exceptions
+    function removeAirdropReward(address receiver_, uint airdropId_, uint rewardIndex) external onlyRewardDefiner {
+        uint rewardCount = getAirdropRewardCount(receiver_, airdropId_);
+        require(rewardIndex < rewardCount, "Reward index out of boundaries");
+
+        Reward memory rew = _airdropRewards[receiver_][airdropId_][rewardIndex];
+
+        require(rew._exist == true, "Reward does not exist");
+        require(rew.isClaimed == false, "Can not remove claimed reward");
+
+        Reward[] storage receiverRewards = _airdropRewards[receiver_][airdropId_];
+        receiverRewards[rewardIndex] = receiverRewards[rewardCount - 1];
+        receiverRewards.pop();
+
+        emit AirdropRewardUpdated(receiver_, rewardIndex, airdropId_);
     }
 }
