@@ -135,7 +135,6 @@ contract ZizyCompetitionStaking is OwnableUpgradeable {
         coolestDelay = 15 * 24 * 60 * 60;
         coolingPercentage = 15;
         smartBurned = 0;
-        totalStakedSnapshot = 0;
 
         stakeToken = IERC20Upgradeable(stakeToken_);
         feeAddress = feeReceiver_;
