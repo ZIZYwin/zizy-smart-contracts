@@ -89,13 +89,13 @@ contract ZizyCompetitionStaking is OwnableUpgradeable {
 
     // Events
     event StakeFeePercentageUpdated(uint8 newPercentage);
-    event StakeFeeReceived(uint256 amount);
-    event UnStakeFeeReceived(uint256 amount);
+    event StakeFeeReceived(uint256 amount, uint256 snapshotId, uint256 periodId);
+    event UnStakeFeeReceived(uint256 amount, uint256 snapshotId, uint256 periodId);
     event SnapshotCreated(uint256 id, uint256 periodId);
-    event Stake(address account, uint256 amount, uint256 fee);
-    event UnStake(address account, uint256 amount);
+    event Stake(address account, uint256 amount, uint256 fee, uint256 snapshotId, uint256 periodId);
+    event UnStake(address account, uint256 amount, uint256 snapshotId, uint256 periodId);
     event CoolingOffSettingsUpdated(uint8 percentage, uint8 coolingDay, uint8 coolestDay);
-    event SmartBurn(uint256 totalSupply, uint256 burnAmount);
+    event SmartBurn(uint256 totalSupply, uint256 burnAmount, uint256 snapshotId, uint256 periodId);
 
     // Modifiers
     modifier onlyCallFromFactory() {
@@ -268,6 +268,8 @@ contract ZizyCompetitionStaking is OwnableUpgradeable {
     function stake(uint256 amount_) external whenPeriodExist whenFeeAddressExist {
         IERC20Upgradeable token = stakeToken;
         uint256 currentBalance = balanceOf(_msgSender());
+        uint256 currentSnapshot = snapshotId;
+        uint256 periodId = currentPeriod;
         require(amount_ <= token.balanceOf(_msgSender()), "Insufficient balance");
         require(amount_ <= token.allowance(_msgSender(), address(this)), "Insufficient allowance amount for stake");
 
@@ -285,7 +287,7 @@ contract ZizyCompetitionStaking is OwnableUpgradeable {
         // Send stake fee to receiver address if exist
         if (stakeFee > 0) {
             token.safeTransfer(address(feeAddress), stakeFee);
-            emit StakeFeeReceived(stakeFee);
+            emit StakeFeeReceived(stakeFee, currentSnapshot, periodId);
         }
 
         totalStaked += stakeAmount;
@@ -293,7 +295,7 @@ contract ZizyCompetitionStaking is OwnableUpgradeable {
         // Update account details
         updateDetails(_msgSender(), currentBalance, balanceOf(_msgSender()));
         // Emit Stake Event
-        emit Stake(_msgSender(), stakeAmount, stakeFee);
+        emit Stake(_msgSender(), stakeAmount, stakeFee, currentSnapshot, periodId);
     }
 
     // Get period from factory
@@ -340,6 +342,8 @@ contract ZizyCompetitionStaking is OwnableUpgradeable {
     // Un-stake tokens
     function unStake(uint256 amount_) external whenFeeAddressExist {
         uint256 currentBalance = balanceOf(_msgSender());
+        uint256 currentSnapshot = snapshotId;
+        uint256 periodId = currentPeriod;
         require(amount_ <= currentBalance, "Insufficient balance for unstake");
         require(amount_ > 0, "Amount should higher than zero");
 
@@ -355,18 +359,18 @@ contract ZizyCompetitionStaking is OwnableUpgradeable {
 
         // Distribute fee receiver & smart burn
         if (fee > 0) {
-            _distributeFee(fee);
+            _distributeFee(fee, currentSnapshot, periodId);
         }
 
         // Transfer free tokens to user
         token.safeTransfer(_msgSender(), free);
 
         // Emit UnStake Event
-        emit UnStake(_msgSender(), amount_);
+        emit UnStake(_msgSender(), amount_, currentSnapshot, periodId);
     }
 
     // Burn half of tokens, send remainings
-    function _distributeFee(uint256 amount) internal {
+    function _distributeFee(uint256 amount, uint256 snapshotId_, uint256 periodId) internal {
         IERC20Upgradeable tokenSafe = stakeToken;
         IERC20 token = IERC20(address(stakeToken));
         uint256 supply = token.totalSupply();
@@ -379,22 +383,22 @@ contract ZizyCompetitionStaking is OwnableUpgradeable {
             leftAmount = amount - burnAmount;
         }
 
-        _smartBurn(token, supply, burnAmount);
-        _feeTransfer(tokenSafe, leftAmount);
+        _smartBurn(token, supply, burnAmount, snapshotId_, periodId);
+        _feeTransfer(tokenSafe, leftAmount, snapshotId_, periodId);
     }
 
     // Transfer token to receiver with given amount
-    function _feeTransfer(IERC20Upgradeable token, uint256 amount) internal {
+    function _feeTransfer(IERC20Upgradeable token, uint256 amount, uint256 snapshotId_, uint256 periodId) internal {
         if (amount <= 0) {
             return;
         }
 
         token.safeTransfer(address(feeAddress), amount);
-        emit UnStakeFeeReceived(amount);
+        emit UnStakeFeeReceived(amount, snapshotId_, periodId);
     }
 
     // Burn given token with given amount
-    function _smartBurn(IERC20 token, uint256 supply, uint256 burnAmount) internal {
+    function _smartBurn(IERC20 token, uint256 supply, uint256 burnAmount, uint256 snapshotId_, uint256 periodId) internal {
         if (burnAmount <= 0) {
             return;
         }
@@ -402,7 +406,7 @@ contract ZizyCompetitionStaking is OwnableUpgradeable {
         token.burn(burnAmount);
         smartBurned += burnAmount;
 
-        emit SmartBurn((supply - burnAmount), burnAmount);
+        emit SmartBurn((supply - burnAmount), burnAmount, snapshotId_, periodId);
     }
 
     // Get period stake average information
