@@ -84,6 +84,8 @@ contract ZizyCompetitionStaking is OwnableUpgradeable {
     mapping(uint256 => Period) private periods;
     // Period staking averages
     mapping(address => mapping(uint256 => PeriodStakeAverage)) private averages;
+    // Total staked snapshot
+    mapping(uint256 => uint256) public totalStakedSnapshot;
 
     // Events
     event StakeFeePercentageUpdated(uint8 newPercentage);
@@ -133,6 +135,7 @@ contract ZizyCompetitionStaking is OwnableUpgradeable {
         coolestDelay = 15 * 24 * 60 * 60;
         coolingPercentage = 15;
         smartBurned = 0;
+        totalStakedSnapshot = 0;
 
         stakeToken = IERC20Upgradeable(stakeToken_);
         feeAddress = feeReceiver_;
@@ -182,6 +185,7 @@ contract ZizyCompetitionStaking is OwnableUpgradeable {
     function _snapshot() internal {
         uint256 currentSnapshot = snapshotId;
         snapshotId++;
+        totalStakedSnapshot[currentSnapshot] = totalStaked;
         emit SnapshotCreated(currentSnapshot, currentPeriod);
     }
 
@@ -194,11 +198,9 @@ contract ZizyCompetitionStaking is OwnableUpgradeable {
     // Take snapshot
     function snapshot() external onlyOwner {
         uint256 periodId = currentPeriod;
-        uint ts = block.timestamp;
-        (uint start, uint end, uint ticketBuyStart, uint ticketBuyEnd, , , bool exist) = _getPeriod(periodId);
+        (, , , , , , bool exist) = _getPeriod(periodId);
 
         require(exist == true, "No active period exist");
-        require(_isInRange(ts, start, end) && ts < ticketBuyStart && ts < ticketBuyEnd, "Snapshot can't taken for now");
 
         _snapshot();
     }
