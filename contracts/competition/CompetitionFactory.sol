@@ -420,8 +420,18 @@ contract CompetitionFactory is OwnableUpgradeable, ReentrancyGuardUpgradeable {
         emit TicketBuy(_msgSender(), periodId, competitionId, ticketCount);
     }
 
+    // Check maximum allocation for competition
+    function _isAllocationExceeds(address account_, uint256 periodId_, uint256 competitionId_, uint mintCount_) internal view returns (bool) {
+        // Max allocation limit check
+        Allocation memory alloc = _getAllocation(account_, periodId_, competitionId_);
+        return (mintCount_ > (alloc.max - alloc.bought));
+    }
+
     // Mint & Send ticket
     function mintTicket(uint256 periodId, uint256 competitionId, address to_, uint256 ticketId_) external onlyMinter {
+        bool reachMax = _isAllocationExceeds(to_, periodId, competitionId, 1);
+        require(reachMax == false, "Maximum allocation limit exceeds");
+
         Competition memory comp = _periodCompetitions[periodId][competitionId];
         require(comp._exist == true, "Competition does not exist");
         comp.ticket.mint(to_, ticketId_);
@@ -432,6 +442,9 @@ contract CompetitionFactory is OwnableUpgradeable, ReentrancyGuardUpgradeable {
     function mintBatchTicket(uint256 periodId, uint256 competitionId, address to_, uint256[] calldata ticketIds) external onlyMinter {
         uint length = ticketIds.length;
         require(length > 0, "Ticket ids length should be higher than zero");
+
+        bool reachMax = _isAllocationExceeds(to_, periodId, competitionId, length);
+        require(reachMax == false, "Maximum allocation limit exceeds");
 
         Competition memory comp = _periodCompetitions[periodId][competitionId];
         require(comp._exist == true, "Competition does not exist");
