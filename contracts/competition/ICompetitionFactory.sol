@@ -12,6 +12,7 @@ interface ICompetitionFactory {
     function getAllocation(address account, uint256 periodId, uint256 competitionId) external view returns (uint32, uint32, bool);
     function getPeriodEndTime(uint256 periodId) external view returns (uint);
     function hasParticipation(address account_, uint256 periodId_) external view returns (bool);
+    function isCompetitionSettingsDefined(uint256 periodId, uint256 competitionId) external view returns (bool);
     function getPeriodCompetition(uint256 periodId, uint16 competitionId) external view returns (address, bool);
     function getPeriodCompetitionCount(uint256 periodId) external view returns (uint);
     function pauseCompetitionTransfer(uint256 periodId, uint16 competitionId) external;

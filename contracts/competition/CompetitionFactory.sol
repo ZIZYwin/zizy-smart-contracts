@@ -147,8 +147,8 @@ contract CompetitionFactory is OwnableUpgradeable, ReentrancyGuardUpgradeable {
         ticketMinter = minter_;
     }
 
-    // Check ticket buy conditions for given competition & period
-    function canTicketBuy(uint256 periodId, uint256 competitionId) external view returns (bool) {
+    // Check competition ticket buy settings is defined
+    function isCompetitionSettingsDefined(uint256 periodId, uint256 competitionId) public view returns(bool) {
         Competition memory comp = _periodCompetitions[periodId][competitionId];
 
         // Check competition
@@ -161,6 +161,15 @@ contract CompetitionFactory is OwnableUpgradeable, ReentrancyGuardUpgradeable {
         }
         // Check sellToken & price
         if (comp.pairDefined == false) {
+            return false;
+        }
+
+        return true;
+    }
+
+    // Check ticket buy conditions for given competition & period
+    function canTicketBuy(uint256 periodId, uint256 competitionId) external view returns (bool) {
+        if (isCompetitionSettingsDefined(periodId, competitionId) == false) {
             return false;
         }
 
@@ -424,16 +433,19 @@ contract CompetitionFactory is OwnableUpgradeable, ReentrancyGuardUpgradeable {
     function _isAllocationExceeds(address account_, uint256 periodId_, uint256 competitionId_, uint mintCount_) internal view returns (bool) {
         // Max allocation limit check
         Allocation memory alloc = _getAllocation(account_, periodId_, competitionId_);
+
         return (mintCount_ > (alloc.max - alloc.bought));
     }
 
     // Mint & Send ticket
     function mintTicket(uint256 periodId, uint256 competitionId, address to_, uint256 ticketId_) external onlyMinter {
-        bool reachMax = _isAllocationExceeds(to_, periodId, competitionId, 1);
-        require(reachMax == false, "Maximum allocation limit exceeds");
-
         Competition memory comp = _periodCompetitions[periodId][competitionId];
         require(comp._exist == true, "Competition does not exist");
+
+        Allocation memory alloc = _getAllocation(to_, periodId, competitionId);
+        uint accountTicketBalance = comp.ticket.balanceOf(to_);
+        require((accountTicketBalance + 1) <= alloc.bought, "Maximum ticket allocation bought");
+
         comp.ticket.mint(to_, ticketId_);
         emit TicketSend(to_, periodId, competitionId, ticketId_);
     }
@@ -443,11 +455,12 @@ contract CompetitionFactory is OwnableUpgradeable, ReentrancyGuardUpgradeable {
         uint length = ticketIds.length;
         require(length > 0, "Ticket ids length should be higher than zero");
 
-        bool reachMax = _isAllocationExceeds(to_, periodId, competitionId, length);
-        require(reachMax == false, "Maximum allocation limit exceeds");
-
         Competition memory comp = _periodCompetitions[periodId][competitionId];
         require(comp._exist == true, "Competition does not exist");
+
+        Allocation memory alloc = _getAllocation(to_, periodId, competitionId);
+        uint accountTicketBalance = comp.ticket.balanceOf(to_);
+        require((accountTicketBalance + length) <= alloc.bought, "Maximum ticket allocation bought");
 
         for (uint i = 0; i < length; ++i) {
             uint256 mintTicketId = ticketIds[i];

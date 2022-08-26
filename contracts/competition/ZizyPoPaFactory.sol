@@ -146,6 +146,12 @@ contract ZizyPoPaFactory is OwnableUpgradeable {
         uint periodCompCount = factory.getPeriodCompetitionCount(periodId);
         for (uint i = 0; i < periodCompCount; ++i) {
             uint compId = factory.getCompetitionIdWithIndex(periodId, i);
+
+            // Continue if competition ticket buy settings isn't defined
+            if (factory.isCompetitionSettingsDefined(periodId, compId) == false) {
+                continue;
+            }
+
             (uint32 bought, uint32 max, bool hasAlloc) = factory.getAllocation(account, periodId, compId);
 
             // User hasn't participated all competitions
