@@ -57,7 +57,7 @@ contract ZizyCompetitionStaking is OwnableUpgradeable {
     uint256 public currentPeriod;
 
     // Current snapshot id
-    uint256 public snapshotId;
+    uint256 private snapshotId;
 
     // Total staked token balance
     uint256 public totalStaked;
@@ -138,6 +138,11 @@ contract ZizyCompetitionStaking is OwnableUpgradeable {
 
         stakeToken = IERC20Upgradeable(stakeToken_);
         feeAddress = feeReceiver_;
+    }
+
+    // Get snapshot ID
+    function getSnapshotId() public view returns (uint) {
+        return snapshotId;
     }
 
     // Update un-stake cooling off settings
