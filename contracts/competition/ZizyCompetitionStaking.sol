@@ -424,8 +424,65 @@ contract ZizyCompetitionStaking is OwnableUpgradeable {
         return _getPeriodStakeAverage(account, periodId);
     }
 
-    // Get snapshot average with min/max range
-    function getSnapshotsAverage(address account, uint256 periodId, uint256 min, uint256 max) external view returns (uint256, bool) {
+    // Get snapshot average (Using on stake rewards)
+    function getSnapshotAverage(address account, uint256 min, uint256 max) public view returns (uint) {
+        uint currentSnapshot = snapshotId;
+
+        require(min <= max, "Max should be equal or higher than max");
+        require(max <= currentSnapshot, "Max should be equal or lower than current snapshot");
+
+        ActivityDetails memory details = activityDetails[account];
+
+        // If account hasn't stake activity after `min` snapshot, return last activity balance
+        if (details.lastSnapshotId <= min) {
+            return details.lastActivityBalance;
+        }
+
+        uint stakeSum = 0;
+        uint unknownCounter = 0;
+        uint lastBalance = 0;
+        bool shift = false;
+
+        // Get sum of snapshot stakes
+        for (uint i = min; i <= max; ++i) {
+            Snapshot memory shot = snapshots[account][i];
+
+            if (shot._exist == false) {
+                // Snapshot data does not exist
+                if (shift == false) {
+                    unknownCounter++;
+                } else {
+                    stakeSum += (unknownCounter + 1) * lastBalance;
+                    unknownCounter = 0;
+                }
+            } else {
+                // Snapshot data is exist
+                lastBalance = shot.balance;
+                stakeSum += lastBalance;
+            }
+        }
+
+        if (unknownCounter > 0) {
+            // Scan any stake activity from max to currentSnapshotId
+            for (uint i = (max + 1); i <= currentSnapshot; ++i) {
+                Snapshot memory shot = snapshots[account][i];
+                if (shot._exist == true) {
+                    stakeSum += (unknownCounter * shot.prevSnapshotBalance);
+                    unknownCounter = 0;
+                    break;
+                }
+            }
+
+            // If never activity found until `scanMax`, then average = balanceOf()
+            stakeSum += (unknownCounter * balanceOf(account));
+            unknownCounter = 0;
+        }
+
+        return (stakeSum / (max - min + 1));
+    }
+
+    // Get period snapshot average with min/max range
+    function getPeriodSnapshotsAverage(address account, uint256 periodId, uint256 min, uint256 max) external view returns (uint256, bool) {
         require(min <= max, "Min should be higher");
         uint256 currentSnapshotId = snapshotId;
         Period memory period = periods[periodId];

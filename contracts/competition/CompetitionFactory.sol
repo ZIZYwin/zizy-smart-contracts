@@ -198,7 +198,7 @@ contract CompetitionFactory is OwnableUpgradeable, ReentrancyGuardUpgradeable {
 
         Competition memory comp = _periodCompetitions[periodId][competitionId];
         require(comp.snapshotMin > 0 && comp.snapshotMax > 0 && comp.snapshotMin <= comp.snapshotMax, "Competition snapshot ranges is not defined");
-        (uint256 average, bool _calculated) = stakingContract.getSnapshotsAverage(account, periodId, comp.snapshotMin, comp.snapshotMax);
+        (uint256 average, bool _calculated) = stakingContract.getPeriodSnapshotsAverage(account, periodId, comp.snapshotMin, comp.snapshotMax);
 
         require(_calculated == true, "Period snapshot averages does not calculated !");
 
@@ -360,7 +360,6 @@ contract CompetitionFactory is OwnableUpgradeable, ReentrancyGuardUpgradeable {
 
         bytes32 compHash = _competitionKey(periodId, competitionId);
         uint prevMax = 0;
-        uint prevMin = 0;
 
         delete _compTiers[compHash];
 
@@ -377,7 +376,6 @@ contract CompetitionFactory is OwnableUpgradeable, ReentrancyGuardUpgradeable {
             }
             _compTiers[compHash].push(Tier(min, max, alloc));
 
-            prevMin = min;
             prevMax = max;
         }
     }
