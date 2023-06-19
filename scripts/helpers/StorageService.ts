@@ -7,7 +7,7 @@ const STORAGE_PATH = "./storage.json";
 interface IContractStorage {
   contractAddress?: string,
   bytecode?: string,
-  arguments?: (string | number)[],
+  arguments?: any,
   lastUpdate?: Date,
 }
 
@@ -41,7 +41,7 @@ export class StorageService {
     }
   }
 
-  public async setData(contractName: string, _args: (string | number)[] = [], newContractAddress?: string, save: boolean = true) {
+  public async setData(contractName: string, _args: any, newContractAddress?: string, save: boolean = true) {
     const factory = await this.hre.ethers.getContractFactory(contractName);
     if (!_.has(this.data, this.chainId)) {
       this.data[this.chainId] = {};
@@ -58,6 +58,10 @@ export class StorageService {
       arguments: _args,
       lastUpdate: (new Date())
     };
+
+    if (save) {
+      await this.save();
+    }
   }
 
   public getData(contractName: string, chainId?: number) {
