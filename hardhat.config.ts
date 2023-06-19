@@ -6,6 +6,7 @@ import "@nomiclabs/hardhat-waffle";
 import "@typechain/hardhat";
 import "hardhat-gas-reporter";
 import "@openzeppelin/hardhat-upgrades";
+import { registerTasks } from "./tasks/index";
 
 dotenv.config();
 
@@ -104,5 +105,7 @@ const config: HardhatUserConfig = {
     apiKey: process.env.POLYGONSCAN_API_KEY
   }
 };
+
+registerTasks();
 
 export default config;
