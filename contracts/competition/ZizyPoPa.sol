@@ -7,9 +7,18 @@ import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Pausable.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
-// @dev PoPa - NFT for competitions. Maybe a treasure is hidden here
+/**
+ * @title ZizyPoPa
+ * @notice This contract represents the PoPa (NFT for competitions) contract, where unique tokens can be minted, transferred, and paused.
+ * @dev This contract inherits from the ERC721, ERC721Enumerable, ERC721Pausable, and Ownable contracts from OpenZeppelin.
+ */
 contract ZizyPoPa is ERC721, ERC721Enumerable, ERC721Pausable, Ownable {
 
+    /**
+     * @dev Emitted when a new PoPa token is minted.
+     * @param to The address to which the token is minted.
+     * @param tokenId The ID of the minted token.
+     */
     event PoPaMinted(address to, uint256 tokenId);
 
     /**
@@ -17,51 +26,86 @@ contract ZizyPoPa is ERC721, ERC721Enumerable, ERC721Pausable, Ownable {
      */
     string public baseUri = "";
 
+    /**
+     * @notice The address of the minter account.
+     */
     address public minterAccount;
 
+    /**
+     * @notice Initializes the ZizyPoPa contract.
+     * @param name_ The name of the NFT contract.
+     * @param symbol_ The symbol of the NFT contract.
+     * @param minter_ The address of the minter account.
+     *
+     * @inheritdoc ERC721
+     */
     constructor(string memory name_, string memory symbol_, address minter_) ERC721(name_, symbol_) {
         _setMinter(minter_);
     }
 
-    // Throw if caller is not minter
+    /**
+     * @dev Throws if the caller is not the minter account.
+     */
     modifier onlyMinter() {
         require(msg.sender == minterAccount, "Only call from minter");
         _;
     }
 
-    // Set minter account
+    /**
+     * @notice Sets the minter account address.
+     * @param minter_ The address of the minter account.
+     *
+     * @dev It sets the minter account address to the specified address.
+     */
     function _setMinter(address minter_) internal {
         require(minter_ != address(0), "Minter account can not be zero");
         minterAccount = minter_;
     }
 
-    // Set minter account
+    /**
+     * @notice Sets the minter account address.
+     * @param minter_ The address of the minter account.
+     *
+     * @dev This function can only be called by the contract owner.
+     * It sets the minter account address to the specified address.
+     */
     function setMinter(address minter_) external onlyOwner {
         _setMinter(minter_);
     }
 
+    /**
+     * @inheritdoc ERC721
+     */
     function supportsInterface(bytes4 interfaceId) public view virtual override(ERC721, ERC721Enumerable) returns (bool) {
         return super.supportsInterface(interfaceId);
     }
 
     /**
-     * @dev Set base uri
+     * @notice Sets the base URI for token metadata.
+     * @param baseUri_ The base URI to be set.
+     *
+     * @dev This function can only be called by the contract owner.
+     * It sets the base URI used for computing the tokenURI of each token.
      */
     function setBaseURI(string memory baseUri_) public virtual onlyOwner {
         baseUri = baseUri_;
     }
 
     /**
-     * @dev Base URI for computing {tokenURI}. If set, the resulting URI for each
-     * token will be the concatenation of the `baseURI` and the `tokenId`. Empty
-     * by default, can be overridden in child contracts.
+     * @inheritdoc ERC721
      */
     function _baseURI() internal view virtual override(ERC721) returns (string memory) {
         return baseUri;
     }
 
     /**
-     * @dev Popa minted
+     * @notice Mints a new PoPa NFT token.
+     * @param to_ The address to which the token will be minted.
+     * @param tokenId_ The ID of the token to be minted.
+     *
+     * @dev This function can only be called by the minter account.
+     * It mints a new PoPa token with the specified ID and assigns it to the specified address.
+     * Emits a `PoPaMinted` event.
      */
     function mint(address to_, uint256 tokenId_) public virtual onlyMinter {
         _mint(to_, tokenId_);
@@ -69,32 +113,27 @@ contract ZizyPoPa is ERC721, ERC721Enumerable, ERC721Pausable, Ownable {
     }
 
     /**
-     * @dev Pause token transfers
+     * @notice Pauses token transfers.
+     *
+     * @dev This function can only be called by the contract owner.
+     * It pauses all token transfers.
      */
     function pause() public onlyOwner whenNotPaused {
         _pause();
     }
 
     /**
-     * @dev Un-pause token transfers
+     * @notice Unpauses token transfers.
+     *
+     * @dev This function can only be called by the contract owner.
+     * It unpauses all token transfers.
      */
     function unpause() public onlyOwner whenPaused {
         _unpause();
     }
 
     /**
-     * @dev Hook that is called before any token transfer. This includes minting
-     * and burning.
-     *
-     * Calling conditions:
-     *
-     * - When `from` and `to` are both non-zero, ``from``'s `tokenId` will be
-     * transferred to `to`.
-     * - When `from` is zero, `tokenId` will be minted for `to`.
-     * - When `to` is zero, ``from``'s `tokenId` will be burned.
-     * - `from` and `to` are never both zero.
-     *
-     * To learn more about hooks, head to xref:ROOT:extending-contracts.adoc#using-hooks[Using Hooks].
+     * @inheritdoc ERC721
      */
     function _beforeTokenTransfer(
         address from,
@@ -106,15 +145,7 @@ contract ZizyPoPa is ERC721, ERC721Enumerable, ERC721Pausable, Ownable {
     }
 
     /**
-     * @dev Hook that is called after any transfer of tokens. This includes
-     * minting and burning.
-     *
-     * Calling conditions:
-     *
-     * - when `from` and `to` are both non-zero.
-     * - `from` and `to` are never both zero.
-     *
-     * To learn more about hooks, head to xref:ROOT:extending-contracts.adoc#using-hooks[Using Hooks].
+     * @inheritdoc ERC721
      */
     function _afterTokenTransfer(
         address from,
