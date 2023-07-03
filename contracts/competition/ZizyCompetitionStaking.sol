@@ -13,13 +13,14 @@ contract ZizyCompetitionStaking is OwnableUpgradeable {
     using SafeERC20Upgradeable for IERC20Upgradeable;
     using SafeMathUpgradeable for uint256;
 
-    // Structs
+    /// @notice Struct for stake snapshots
     struct Snapshot {
         uint256 balance;
         uint256 prevSnapshotBalance;
         bool _exist;
     }
 
+    /// @notice Struct for period & snapshot range
     struct Period {
         uint256 firstSnapshotId;
         uint256 lastSnapshotId;
@@ -27,86 +28,151 @@ contract ZizyCompetitionStaking is OwnableUpgradeable {
         bool _exist;
     }
 
+    /// @notice Struct for account activity details
     struct ActivityDetails {
         uint256 lastSnapshotId;
         uint256 lastActivityBalance;
         bool _exist;
     }
 
+    /// @notice Struct for period stake average
     struct PeriodStakeAverage {
         uint256 average;
         bool _calculated;
     }
 
-    // Stake token address [Zizy]
+    /// @notice The address of the stake token used for staking (ZIZY)
     IERC20Upgradeable public stakeToken;
 
-    // Competition factory contract
+    /// @notice The address of the competition factory contract
     address public competitionFactory;
 
-    // Stake fee percentage
+    /// @notice The percentage of stake fee deducted from staked tokens
     uint8 public stakeFeePercentage;
 
-    // Fee receiver address
+    /// @notice The address that receives the stake/unstake fees
     address public feeAddress;
 
-    // Current period number
+    /// @notice The current period number
     uint256 public currentPeriod;
 
-    // Current snapshot id
+    /// @notice The current snapshot ID
     uint256 private snapshotId;
 
-    // Total staked token balance
+    /// @notice The total balance of staked tokens
     uint256 public totalStaked;
 
-    // Cooling off delay time
+    /// @notice The delay time for the cooling off period after staking
     uint256 public coolingDelay;
 
-    // Coolest delay for unstake
+    /// @notice The coolest delay time after staking
     uint256 public coolestDelay;
 
-    // Cooling off percentage
+    /// @notice The percentage of tokens that enter the cooling off period after staking
     uint8 public coolingPercentage;
 
-    // Stake balances for address
+    // @notice Stake balances for each address
     mapping(address => uint256) private balances;
-    // Account => SnapshotID => Snapshot
+
+    // @dev Account snapshot details for each snapshot ID: [Account => SnapshotID => Snapshot]
     mapping(address => mapping(uint256 => Snapshot)) private snapshots;
-    // Account activity details
+
+    // @dev Account activity details for each address
     mapping(address => ActivityDetails) private activityDetails;
-    // Periods
+
+    // @dev Details of each period
     mapping(uint256 => Period) private periods;
-    // Period staking averages
+
+    // @dev Stake averages for each address and period
     mapping(address => mapping(uint256 => PeriodStakeAverage)) private averages;
-    // Total staked snapshot
+
+    // @notice Snapshot of total staked amount for each snapshot ID: [SnapshotID => StakeTotal]
     mapping(uint256 => uint256) public totalStakedSnapshot;
 
-    // Events
+    /**
+     * @notice Event emitted when the stake fee percentage is updated
+     * @param newPercentage The new stake fee percentage
+     */
     event StakeFeePercentageUpdated(uint8 newPercentage);
+
+    /**
+     * @notice Event emitted when stake fee is received
+     * @param amount The amount of stake fee received
+     * @param snapshotId The ID of the snapshot
+     * @param periodId The ID of the period
+     */
     event StakeFeeReceived(uint256 amount, uint256 snapshotId, uint256 periodId);
+
+    /**
+     * @notice Event emitted when unstake fee is received
+     * @param amount The amount of unstake fee received
+     * @param snapshotId The ID of the snapshot
+     * @param periodId The ID of the period
+     */
     event UnStakeFeeReceived(uint256 amount, uint256 snapshotId, uint256 periodId);
+
+    /**
+     * @notice Event emitted when a snapshot is created
+     * @param id The ID of the snapshot
+     * @param periodId The ID of the period
+     */
     event SnapshotCreated(uint256 id, uint256 periodId);
+
+    /**
+     * @notice Event emitted when a stake is made
+     * @param account The account that made the stake
+     * @param amount The amount of tokens staked
+     * @param fee The stake fee amount
+     * @param snapshotId The ID of the snapshot
+     * @param periodId The ID of the period
+     */
     event Stake(address account, uint256 amount, uint256 fee, uint256 snapshotId, uint256 periodId);
+
+    /**
+     * @notice Event emitted when an unstake is made
+     * @param account The account that made the unstake
+     * @param amount The amount of tokens unstaked
+     * @param snapshotId The ID of the snapshot
+     * @param periodId The ID of the period
+     */
     event UnStake(address account, uint256 amount, uint256 snapshotId, uint256 periodId);
+
+    /**
+     * @notice Event emitted when the cooling off settings are updated
+     * @param percentage The new cooling off percentage
+     * @param coolingDay The cooling off day value
+     * @param coolestDay The coolest day value
+     */
     event CoolingOffSettingsUpdated(uint8 percentage, uint8 coolingDay, uint8 coolestDay);
 
-    // Modifiers
+    /**
+     * @dev Modifier that allows the function to be called only from the competition factory contract
+     */
     modifier onlyCallFromFactory() {
         require(_msgSender() == competitionFactory, "Only call from factory");
         _;
     }
 
+    /**
+     * @dev Modifier that checks if the fee address is defined
+     */
     modifier whenFeeAddressExist() {
         require(feeAddress != address(0), "Fee address should be defined");
         _;
     }
 
+    /**
+     * @dev Modifier that checks if the current period exists
+     */
     modifier whenPeriodExist() {
         uint256 periodId = currentPeriod;
         require(periodId > 0 && periods[periodId]._exist == true, "There is no period exist");
         _;
     }
 
+    /**
+     * @dev Modifier that checks if the current period is in the buy stage
+     */
     modifier whenCurrentPeriodInBuyStage() {
         uint ts = block.timestamp;
         (uint start, uint end, uint ticketBuyStart, uint ticketBuyEnd, , , bool exist) = _getPeriod(currentPeriod);
@@ -115,7 +181,14 @@ contract ZizyCompetitionStaking is OwnableUpgradeable {
         _;
     }
 
-    // Initializer
+    /**
+     * @notice Initializes the contract with the specified parameters
+     * @param stakeToken_ The address of the stake token
+     * @param feeReceiver_ The address of the fee receiver
+     *
+     * @dev This function should be called only once during contract initialization.
+     * It sets the stake token, fee receiver, and initializes other state variables.
+     */
     function initialize(address stakeToken_, address feeReceiver_) external initializer {
         require(stakeToken_ != address(0), "Contract address can not be zero");
 
@@ -132,12 +205,28 @@ contract ZizyCompetitionStaking is OwnableUpgradeable {
         feeAddress = feeReceiver_;
     }
 
-    // Get snapshot ID
+    /**
+     * @notice Gets the current snapshot ID
+     * @return The current snapshot ID
+     *
+     * @dev This function returns the ID of the current snapshot.
+     */
     function getSnapshotId() public view returns (uint) {
         return snapshotId;
     }
 
-    // Update un-stake cooling off settings
+    /**
+     * @notice Updates the cooling off settings for un-staking
+     * @param percentage_ The new percentage for cooling off
+     * @param coolingDay_ The number of days for the cooling off period
+     * @param coolestDay_ The number of days for the coolest off period
+     *
+     * @dev This function allows the contract owner to update the cooling off settings for un-staking.
+     * The percentage should be in the range of 0 to 100.
+     * The cooling off period is specified in number of days, which is converted to seconds.
+     * The coolest off period is also specified in number of days, which is converted to seconds.
+     * Emits a CoolingOffSettingsUpdated event with the new settings.
+     */
     function updateCoolingOffSettings(uint8 percentage_, uint8 coolingDay_, uint8 coolestDay_) external onlyOwner {
         require(percentage_ >= 0 && percentage_ <= 100, "Percentage should be in 0-100 range");
         coolingPercentage = percentage_;
@@ -146,22 +235,51 @@ contract ZizyCompetitionStaking is OwnableUpgradeable {
         emit CoolingOffSettingsUpdated(percentage_, coolingDay_, coolestDay_);
     }
 
-    // Get activity details for account
+    /**
+     * @notice Retrieves the activity details for an account
+     * @param account The address of the account
+     * @return The activity details for the specified account
+     *
+     * @dev This function allows to retrieve the activity details for a specific account.
+     * Returns an ActivityDetails struct containing the details of the account's activity.
+     */
     function getActivityDetails(address account) external view returns (ActivityDetails memory) {
         return activityDetails[account];
     }
 
-    // Get snapshot
+    /**
+     * @notice Retrieves a specific snapshot for an account
+     * @param account The address of the account
+     * @param snapshotId_ The ID of the snapshot
+     * @return The snapshot for the specified account and snapshot ID
+     *
+     * @dev This function allows to retrieve a specific snapshot for a given account and snapshot ID.
+     * Returns a Snapshot struct containing the details of the snapshot.
+     */
     function getSnapshot(address account, uint256 snapshotId_) external view returns (Snapshot memory) {
         return snapshots[account][snapshotId_];
     }
 
-    // Get period
+    /**
+     * @notice Retrieves the details of a specific period
+     * @param periodId_ The ID of the period
+     * @return The details of the specified period
+     *
+     * @dev This function allows to retrieve the details of a specific period.
+     * Returns a Period struct containing the details of the period.
+     */
     function getPeriod(uint256 periodId_) external view returns (Period memory) {
         return periods[periodId_];
     }
 
-    // Get period snapshot range
+    /**
+     * @notice Retrieves the snapshot range for a specific period
+     * @param periodId The ID of the period
+     * @return The minimum and maximum snapshot IDs for the specified period
+     *
+     * @dev This function allows to retrieve the snapshot range for a specific period.
+     * It returns the minimum and maximum snapshot IDs for the specified period.
+     */
     function getPeriodSnapshotRange(uint256 periodId) external view returns (uint, uint) {
         Period memory period = periods[periodId];
         require(period._exist == true, "Period does not exist");
@@ -172,12 +290,25 @@ contract ZizyCompetitionStaking is OwnableUpgradeable {
         return (min, max);
     }
 
-    // BalanceOf - Account
+    /**
+     * @notice Retrieves the balance of staked tokens for a specific account
+     * @param account The address of the account
+     * @return The balance of tokens for the specified account
+     *
+     * @dev This function allows to retrieve the staked balance of tokens for a specific account.
+     * It returns the number of tokens held by the specified account.
+     */
     function balanceOf(address account) public view returns (uint256) {
         return balances[account];
     }
 
-    // Increase snapshot counter
+    /**
+     * @notice Increases the snapshot counter
+     *
+     * @dev This internal function is used to increase the snapshot counter.
+     * It increments the snapshotId and records the total staked balance for the current snapshot.
+     * Emits a SnapshotCreated event with the current snapshot ID and the current period.
+     */
     function _snapshot() internal {
         uint256 currentSnapshot = snapshotId;
         snapshotId++;
@@ -185,13 +316,29 @@ contract ZizyCompetitionStaking is OwnableUpgradeable {
         emit SnapshotCreated(currentSnapshot, currentPeriod);
     }
 
-    // Check number is in range
+    /**
+     * @notice Checks if a number is within the specified range
+     * @param number The number to check
+     * @param min The minimum value of the range
+     * @param max The maximum value of the range
+     * @return A boolean indicating whether the number is within the range
+     *
+     * @dev This internal function is used to check if a given number is within the specified range.
+     * It throws an error if the minimum value is higher than the maximum value.
+     * Returns true if the number is greater than or equal to the minimum value and less than or equal to the maximum value.
+     */
     function _isInRange(uint number, uint min, uint max) internal pure returns (bool) {
         require(min <= max, "Min can not be higher than max");
         return (number >= min && number <= max);
     }
 
-    // Take snapshot
+    /**
+     * @notice Takes a snapshot of the current state
+     *
+     * @dev This function is used to take a snapshot of the current state by increasing the snapshot counter.
+     * It can only be called by the contract owner.
+     * It checks if there is an active period and then calls the internal `_snapshot` function to increase the snapshot counter.
+     */
     function snapshot() external onlyOwner {
         uint256 periodId = currentPeriod;
         (, , , , , , bool exist) = _getPeriod(periodId);
@@ -201,7 +348,16 @@ contract ZizyCompetitionStaking is OwnableUpgradeable {
         _snapshot();
     }
 
-    // Set period number
+    /**
+     * @notice Sets the period number
+     * @param period The period number to set
+     * @return The period number that was set
+     *
+     * @dev This function is used to set the period number.
+     * It can only be called by the competition factory contract.
+     * It updates the current period, creates a new snapshot, and updates the period information.
+     * If there was a previous active period, it sets the last snapshot of the previous period and marks it as over.
+     */
     function setPeriodId(uint256 period) external onlyCallFromFactory returns (uint256) {
         uint256 prevPeriod = currentPeriod;
         uint256 currentSnapshot = snapshotId;
@@ -220,26 +376,56 @@ contract ZizyCompetitionStaking is OwnableUpgradeable {
         return period;
     }
 
-    // Set competition factory contract address
+    /**
+     * @notice Sets the competition factory contract address
+     * @param competitionFactory_ The address of the competition factory contract
+     *
+     * @dev This function is used to set the competition factory contract address.
+     * It can only be called by the contract owner.
+     * It updates the competition factory contract address to the specified address.
+     */
     function setCompetitionFactory(address competitionFactory_) external onlyOwner {
         require(address(competitionFactory_) != address(0), "Competition factory address can not be zero");
         competitionFactory = competitionFactory_;
     }
 
-    // Set stake fee percentage ratio between 0 and 100
+    /**
+     * @notice Sets the stake fee percentage
+     * @param stakeFeePercentage_ The stake fee percentage to be set (between 0 and 100)
+     *
+     * @dev This function is used to set the stake fee percentage. It can only be called by the contract owner.
+     * The stake fee percentage should be within the range of 0 to 100 (exclusive).
+     * It updates the stake fee percentage to the specified value and emits the StakeFeePercentageUpdated event.
+     */
     function setStakeFeePercentage(uint8 stakeFeePercentage_) external onlyOwner {
         require(stakeFeePercentage_ >= 0 && stakeFeePercentage_ < 100, "Fee percentage is not within limits");
         stakeFeePercentage = stakeFeePercentage_;
         emit StakeFeePercentageUpdated(stakeFeePercentage_);
     }
 
-    // Set stake fee address
+    /**
+     * @notice Sets the stake fee address
+     * @param feeAddress_ The address to be set as the stake fee address
+     *
+     * @dev This function is used to set the stake fee address. It can only be called by the contract owner.
+     * The fee address should not be the zero address.
+     * It updates the fee address to the specified value.
+     */
     function setFeeAddress(address feeAddress_) external onlyOwner {
         require(feeAddress_ != address(0), "Fee address can not be zero");
         feeAddress = feeAddress_;
     }
 
-    // Update account details
+    /**
+     * @notice Updates the account details
+     * @param account The address of the account
+     * @param previousBalance The previous balance of the account
+     * @param currentBalance The current balance of the account
+     *
+     * @dev This internal function is used to update the account details based on the provided balances.
+     * It updates the current snapshot balance and the previous snapshot balance if it doesn't exist.
+     * It also updates the account details with the latest snapshot and activity balance.
+     */
     function updateDetails(address account, uint256 previousBalance, uint256 currentBalance) internal {
         uint256 currentSnapshotId = snapshotId;
         ActivityDetails storage details = activityDetails[account];
@@ -260,7 +446,19 @@ contract ZizyCompetitionStaking is OwnableUpgradeable {
         }
     }
 
-    // Stake tokens
+    /**
+     * @notice Stakes tokens
+     * @param amount_ The amount of tokens to stake
+     *
+     * @dev This function allows an account to stake tokens into the contract.
+     * The tokens are transferred from the caller to the contract.
+     * The stake amount is calculated by subtracting the stake fee from the total amount.
+     * The stake fee is calculated based on the stake fee percentage.
+     * The caller's balance is increased by the stake amount.
+     * If a stake fee is applicable, it is transferred to the fee address.
+     * The total staked amount is increased by the stake amount.
+     * Account details are updated, and a Stake event is emitted.
+     */
     function stake(uint256 amount_) external whenPeriodExist whenFeeAddressExist {
         IERC20Upgradeable token = stakeToken;
         uint256 currentBalance = balanceOf(_msgSender());
@@ -294,12 +492,31 @@ contract ZizyCompetitionStaking is OwnableUpgradeable {
         emit Stake(_msgSender(), stakeAmount, stakeFee, currentSnapshot, periodId);
     }
 
-    // Get period from factory
+    /**
+     * @notice Get period details from the competition factory
+     * @param periodId_ The ID of the period
+     * @return The start time, end time, ticket buy start time, ticket buy end time, total allocation, existence status, and completion status of the period
+     *
+     * @dev This internal function retrieves the period details from the competition factory contract.
+     * It returns the (start time, end time, ticket buy start time, ticket buy end time, competition count on period, completion status of the period, existence status).
+     */
     function _getPeriod(uint256 periodId_) internal view returns (uint, uint, uint, uint, uint16, bool, bool) {
         return ICompetitionFactory(competitionFactory).getPeriod(periodId_);
     }
 
-    // Calculate un-stake free amount / cooling off fee amount
+    /**
+     * @notice Calculate the un-stake fee amount and remaining amount after cooling off period
+     * @param requestAmount_ The amount requested for un-stake
+     * @return The un-stake fee amount and the remaining amount after deducting the fee
+     *
+     * @dev This function calculates the un-stake fee amount and the remaining amount after deducting the fee,
+     * based on the cooling off settings and the current period.
+     * It takes the requested un-stake amount as input and returns the un-stake fee amount and the remaining amount.
+     * If the period does not exist or the cooling off delays are not defined, the function returns the requested amount as is.
+     * If the current time is within the coolest period, the function deducts the cooling off fee percentage from the requested amount.
+     * If the current time is within the cooling off period, the function calculates the remaining amount after deducting the cooling off fee gradually.
+     * Otherwise, if the cooling off period has passed, the function returns the requested amount as is, without any fee deduction.
+     */
     function calculateUnStakeAmounts(uint requestAmount_) public view returns (uint, uint) {
         (uint startTime, , , , , , bool exist) = _getPeriod(currentPeriod);
         uint timestamp = block.timestamp;
@@ -335,7 +552,17 @@ contract ZizyCompetitionStaking is OwnableUpgradeable {
         return (fee_, amount_);
     }
 
-    // Un-stake tokens
+    /**
+     * @notice Un-stake tokens
+     * @param amount_ The amount of tokens to un-stake
+     *
+     * @dev This function allows the user to un-stake a specific amount of tokens.
+     * It checks if the user has sufficient balance for un-staking and if the amount is greater than zero.
+     * It calculates the un-stake fee amount and the remaining amount after deducting the fee using the calculateUnStakeAmounts function.
+     * It updates the user's balance, total staked amount, and account details.
+     * It transfers the un-stake fee to the fee receiver address and transfers the remaining amount of tokens to the user.
+     * It emits the UnStake event.
+     */
     function unStake(uint256 amount_) external whenFeeAddressExist {
         uint256 currentBalance = balanceOf(_msgSender());
         uint256 currentSnapshot = snapshotId;
@@ -363,7 +590,17 @@ contract ZizyCompetitionStaking is OwnableUpgradeable {
         emit UnStake(_msgSender(), amount_, currentSnapshot, periodId);
     }
 
-    // Transfer unstake fees
+    /**
+     * @notice Transfer un-stake fees
+     * @param amount The amount of un-stake fees to transfer
+     * @param snapshotId_ The snapshot ID
+     * @param periodId The period ID
+     *
+     * @dev This internal function transfers the un-stake fees to the fee receiver address.
+     * It checks if the amount is greater than zero before transferring the fees.
+     * It uses the safeTransfer function of the stakeToken to transfer the fees.
+     * It emits the UnStakeFeeReceived event.
+     */
     function _unStakeFeeTransfer(uint256 amount, uint256 snapshotId_, uint256 periodId) internal {
         if (amount <= 0) {
             return;
@@ -374,18 +611,49 @@ contract ZizyCompetitionStaking is OwnableUpgradeable {
         emit UnStakeFeeReceived(amount, snapshotId_, periodId);
     }
 
-    // Get period stake average information
+    /**
+     * @notice Get period stake average information
+     * @param account The account address
+     * @param periodId The period ID
+     * @return average The stake average for the given account and period
+     * @return calculated Whether the stake average has been calculated for the given account and period
+     *
+     * @dev This internal function returns the stake average and its calculation status for the given account and period.
+     * It retrieves the PeriodStakeAverage struct from the averages mapping and returns the average and _calculated values.
+     */
     function _getPeriodStakeAverage(address account, uint256 periodId) internal view returns (uint256, bool) {
         PeriodStakeAverage memory avg = averages[account][periodId];
         return (avg.average, avg._calculated);
     }
 
-    // Get period stake average information
+    /**
+     * @notice Get period stake average information
+     * @param account The account address
+     * @param periodId The period ID
+     * @return average The stake average for the given account and period
+     * @return calculated Whether the stake average has been calculated for the given account and period
+     *
+     * @dev This function returns the stake average and its calculation status for the given account and period.
+     * It calls the internal function _getPeriodStakeAverage to retrieve the information.
+     */
     function getPeriodStakeAverage(address account, uint256 periodId) external view returns (uint256, bool) {
         return _getPeriodStakeAverage(account, periodId);
     }
 
-    // Get snapshot average (Using on stake rewards)
+    /**
+     * @notice Get snapshot average for stake rewards
+     * @param account The account address
+     * @param min The minimum snapshot ID
+     * @param max The maximum snapshot ID
+     * @return average The average balance of the account for the given snapshot range
+     *
+     * @dev This function calculates the average balance of the account for the specified snapshot range.
+     * It is used for stake rewards calculation. The function requires the min and max snapshot IDs to be within
+     * the range of existing snapshots. If the account has no stake activity after the min snapshot, the function
+     * returns the last activity balance. It then calculates the sum of snapshot balances within the range, considering
+     * any missing snapshot data. If there are missing snapshots, it scans for any stake activity beyond the max snapshot
+     * to fill in the missing data. If no stake activity is found, the average is calculated based on the current balance.
+     */
     function getSnapshotAverage(address account, uint256 min, uint256 max) public view returns (uint) {
         uint currentSnapshot = snapshotId;
 
@@ -442,7 +710,22 @@ contract ZizyCompetitionStaking is OwnableUpgradeable {
         return (stakeSum / (max - min + 1));
     }
 
-    // Get period snapshot average with min/max range
+    /**
+     * @notice Get period snapshot average with min/max range
+     * @param account The account address
+     * @param periodId The period ID
+     * @param min The minimum snapshot ID
+     * @param max The maximum snapshot ID
+     * @return average The average balance of the account for the given period and snapshot range
+     * @return calculated Whether the average has been calculated for the given period
+     *
+     * @dev This function calculates the average balance of the account for the specified period and snapshot range.
+     * It requires the min and max snapshot IDs to be within the range of existing snapshots for the given period.
+     * The function returns the average balance and a boolean indicating whether the average has been calculated for
+     * the given period. If the average hasn't been calculated, the average value will be 0 and calculated will be false.
+     * If the average has been calculated, the function iterates through the snapshot range and calculates the sum of balances.
+     * It then divides the sum by the number of snapshots to get the average balance. The calculated value will be true.
+     */
     function getPeriodSnapshotsAverage(address account, uint256 periodId, uint256 min, uint256 max) external view returns (uint256, bool) {
         require(min <= max, "Min should be higher");
         uint256 currentSnapshotId = snapshotId;
@@ -470,7 +753,17 @@ contract ZizyCompetitionStaking is OwnableUpgradeable {
         return ((total / sCount), true);
     }
 
-    // Calculate period stake average for account
+    /**
+     * @notice Calculate the period stake average for the caller's account
+     *
+     * @dev This function calculates the period stake average for the caller's account.
+     * It can only be called during a valid period and within the buy stage of the current period.
+     * The function checks if the average has already been calculated for the current period.
+     * If it has, the function reverts with an error message.
+     * If the average has not been calculated, the function iterates through the snapshots of the account in reverse order.
+     * It updates the balances and existence flags of the snapshots, and calculates the total stake amount.
+     * Finally, it calculates the average stake amount and stores it in the averages mapping for the caller's account and period.
+     */
     function calculatePeriodStakeAverage() public whenPeriodExist whenCurrentPeriodInBuyStage {
         uint256 periodId = currentPeriod;
         (, bool calculated) = _getPeriodStakeAverage(_msgSender(), periodId);
