@@ -7,9 +7,18 @@ import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "../utils/ERC721Pausable.sol";
 
-// @dev We building sth big. Stay tuned!
+/**
+ * @title ZizyCompetitionTicket
+ * @notice This contract represents the competition ticket contract, where unique tickets can be minted, transferred, and paused.
+ * @dev This contract inherits from the ERC721, ERC721Enumerable, ERC721Pausable, and Ownable contracts from OpenZeppelin.
+ */
 contract ZizyCompetitionTicket is ERC721, ERC721Enumerable, ERC721Pausable, Ownable {
 
+    /**
+     * @notice Emitted when a new ticket is minted.
+     * @param ticketOwner The address of the owner of the ticket.
+     * @param ticketId The ID of the minted ticket.
+     */
     event TicketMinted(address ticketOwner, uint256 ticketId);
 
     /**
@@ -21,28 +30,40 @@ contract ZizyCompetitionTicket is ERC721, ERC721Enumerable, ERC721Pausable, Owna
 
     }
 
+    /**
+     * @inheritdoc ERC721
+     */
     function supportsInterface(bytes4 interfaceId) public view virtual override(ERC721, ERC721Enumerable) returns (bool) {
         return super.supportsInterface(interfaceId);
     }
 
     /**
-     * @dev Set base uri
+     * @notice Sets the base URI for token metadata
+     * @param baseUri_ The base URI string
+     *
+     * @dev This function can only be called by the contract owner.
+     * It sets the base URI for computing the {tokenURI} of each token.
      */
     function setBaseURI(string memory baseUri_) public virtual onlyOwner {
         baseUri = baseUri_;
     }
 
     /**
-     * @dev Base URI for computing {tokenURI}. If set, the resulting URI for each
-     * token will be the concatenation of the `baseURI` and the `tokenId`. Empty
-     * by default, can be overridden in child contracts.
+     * @inheritdoc ERC721
      */
     function _baseURI() internal view virtual override(ERC721) returns (string memory) {
         return baseUri;
     }
 
     /**
-     * @dev Ticket mint [Override if contract is paused]
+     * @notice Mints a new competition ticket
+     * @param to_ The address to mint the ticket to
+     * @param ticketId_ The ID of the ticket to mint
+     *
+     * @dev This function can only be called by the contract owner.
+     * It mints a new competition ticket to the specified address with the specified ticket ID.
+     * It emits a `TicketMinted` event.
+     * If the contract is paused on minting, it will temporarily unpause the contract during the minting process.
      */
     function mint(address to_, uint256 ticketId_) public virtual onlyOwner {
         bool isPausedOnMint = isPaused();
@@ -60,32 +81,27 @@ contract ZizyCompetitionTicket is ERC721, ERC721Enumerable, ERC721Pausable, Owna
     }
 
     /**
-     * @dev Pause token transfers
+     * @notice Pauses token transfers.
+     *
+     * @dev This function can only be called by the contract owner.
+     * It pauses all token transfers.
      */
     function pause() public onlyOwner whenNotPaused {
         _pause();
     }
 
     /**
-     * @dev Un-pause token transfers
+     * @notice Unpauses token transfers.
+     *
+     * @dev This function can only be called by the contract owner.
+     * It unpauses all token transfers.
      */
     function unpause() public onlyOwner whenPaused {
         _unpause();
     }
 
     /**
-     * @dev Hook that is called before any token transfer. This includes minting
-     * and burning.
-     *
-     * Calling conditions:
-     *
-     * - When `from` and `to` are both non-zero, ``from``'s `tokenId` will be
-     * transferred to `to`.
-     * - When `from` is zero, `tokenId` will be minted for `to`.
-     * - When `to` is zero, ``from``'s `tokenId` will be burned.
-     * - `from` and `to` are never both zero.
-     *
-     * To learn more about hooks, head to xref:ROOT:extending-contracts.adoc#using-hooks[Using Hooks].
+     * @inheritdoc ERC721
      */
     function _beforeTokenTransfer(
         address from,
@@ -97,16 +113,7 @@ contract ZizyCompetitionTicket is ERC721, ERC721Enumerable, ERC721Pausable, Owna
     }
 
     /**
-     * @dev Hook that is called after any transfer of tokens. This includes
-     * minting and burning.
-     *
-     * Calling conditions:
-     *
-     * - when `from` and `to` are both non-zero.
-     * - `from` and `to` are never both zero.
-     * - `batchSize` is non-zero.
-     *
-     * To learn more about hooks, head to xref:ROOT:extending-contracts.adoc#using-hooks[Using Hooks].
+     * @inheritdoc ERC721
      */
     function _afterTokenTransfer(
         address from,
