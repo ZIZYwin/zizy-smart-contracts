@@ -59,16 +59,16 @@ contract ZizyPoPaFactory is OwnableUpgradeable, ReentrancyGuardUpgradeable {
     /// @notice Deployed PoPA counter
     uint256 private popaCounter;
 
-    // @notice Mapping for period PoPA nft's: [periodId > PoPA Address]
+    // @dev Mapping for period PoPA nft's: [periodId > PoPA Address]
     mapping(uint256 => address) private _periodPopas;
 
-    // @notice Mapping for PoPA claim states: [Account > PeriodId > Claim State]
+    // @dev Mapping for PoPA claim states: [Account > PeriodId > Claim State]
     mapping(address => mapping(uint256 => bool)) private _popaClaimed;
 
-    // @notice Mapping for PoPA claim mint states: [Account > PeriodId > Mint State]
+    // @dev Mapping for PoPA claim mint states: [Account > PeriodId > Mint State]
     mapping(address => mapping(uint256 => bool)) private _popaClaimMinted;
 
-    // Required percentage of participation in competitions for PoPA claim
+    // @dev Required percentage of participation in competitions for PoPA claim
     uint private _popaClaimAllocationPercentage;
 
     // @notice Competition factory contract address

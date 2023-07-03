@@ -112,16 +112,16 @@ contract ZizyRewardsHub is OwnableUpgradeable, ReentrancyGuardUpgradeable, ERC72
     /// @notice Address of the reward definer.
     address public rewardDefiner;
 
-    // @notice Mapping for competition rewards: [TicketNFTAddress > TokenID > Reward]
+    // @dev Mapping for competition rewards: [TicketNFTAddress > TokenID > Reward]
     mapping(address => mapping(uint256 => Reward)) private _competitionRewards;
 
-    // @notice Mapping for competition reward sources: [TicketNFTAddress > TokenID > CompRewardSource]
+    // @dev Mapping for competition reward sources: [TicketNFTAddress > TokenID > CompRewardSource]
     mapping(address => mapping(uint256 => CompRewardSource)) private _compRewardSource;
 
-    // @notice Mapping for airdrop rewards: [Account > AirdropID > Reward[]]
+    // @dev Mapping for airdrop rewards: [Account > AirdropID > Reward[]]
     mapping(address => mapping(uint256 => Reward[])) private _airdropRewards;
 
-    // Modifier to restrict function calls only to the reward definer address
+    // @dev Modifier to restrict function calls only to the reward definer address
     modifier onlyRewardDefiner() {
         require(_msgSender() == rewardDefiner, "Only call from reward definer !");
         _;
