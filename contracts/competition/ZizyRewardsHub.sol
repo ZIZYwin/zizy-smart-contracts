@@ -13,10 +13,6 @@ import "@openzeppelin/contracts-upgradeable/token/ERC721/IERC721Upgradeable.sol"
  * @notice This contract is used to manage and distribute rewards for the ZIZY platform.
  *
  * @dev It inherits functionalities from OpenZeppelin's Ownable, ReentrancyGuard and ERC721Holder contracts.
- *
- * @inheritdoc OwnableUpgradeable
- * @inheritdoc ReentrancyGuardUpgradeable
- * @inheritdoc ERC721HolderUpgradeable
  */
 contract ZizyRewardsHub is OwnableUpgradeable, ReentrancyGuardUpgradeable, ERC721HolderUpgradeable {
     using SafeERC20Upgradeable for IERC20Upgradeable;

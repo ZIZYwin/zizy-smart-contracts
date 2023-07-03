@@ -17,8 +17,6 @@ import "./ZizyPoPa.sol";
  * @dev This contract is based on the OpenZeppelin Upgradeable Contracts and implements the Ownable and ReentrancyGuard modules.
  * It interacts with the CompetitionFactory and ZizyPoPa contracts.
  *
- * @inheritdoc OwnableUpgradeable
- * @inheritdoc ReentrancyGuardUpgradeable
  */
 contract ZizyPoPaFactory is OwnableUpgradeable, ReentrancyGuardUpgradeable {
     /**
