@@ -11,7 +11,12 @@ import "@openzeppelin/contracts-upgradeable/token/ERC721/IERC721Upgradeable.sol"
 /**
  * @title Zizy Rewards Hub
  * @notice This contract is used to manage and distribute rewards for the ZIZY platform.
+ *
  * @dev It inherits functionalities from OpenZeppelin's Ownable, ReentrancyGuard and ERC721Holder contracts.
+ *
+ * @inheritdoc OwnableUpgradeable
+ * @inheritdoc ReentrancyGuardUpgradeable
+ * @inheritdoc ERC721HolderUpgradeable
  */
 contract ZizyRewardsHub is OwnableUpgradeable, ReentrancyGuardUpgradeable, ERC721HolderUpgradeable {
     using SafeERC20Upgradeable for IERC20Upgradeable;
@@ -111,13 +116,13 @@ contract ZizyRewardsHub is OwnableUpgradeable, ReentrancyGuardUpgradeable, ERC72
     /// @notice Address of the reward definer.
     address public rewardDefiner;
 
-    // Mapping for competition rewards: [TicketNFTAddress > TokenID > Reward]
+    // @notice Mapping for competition rewards: [TicketNFTAddress > TokenID > Reward]
     mapping(address => mapping(uint256 => Reward)) private _competitionRewards;
 
-    // Mapping for competition reward sources: [TicketNFTAddress > TokenID > CompRewardSource]
+    // @notice Mapping for competition reward sources: [TicketNFTAddress > TokenID > CompRewardSource]
     mapping(address => mapping(uint256 => CompRewardSource)) private _compRewardSource;
 
-    // Mapping for airdrop rewards: [Account > AirdropID > Reward[]]
+    // @notice Mapping for airdrop rewards: [Account > AirdropID > Reward[]]
     mapping(address => mapping(uint256 => Reward[])) private _airdropRewards;
 
     // Modifier to restrict function calls only to the reward definer address
