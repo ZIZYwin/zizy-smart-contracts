@@ -23,6 +23,7 @@ task("deploy:erc20-token", "Deploys ERC20 Token")
     const factory = await ethers.getContractFactory("ZizyERC20", signerAccount);
 
     const contract = await factory.deploy(taskArgs.name, taskArgs.symbol);
+    await contract.deployed();
 
     // Save
     await storage.setData("ZizyERC20", {
