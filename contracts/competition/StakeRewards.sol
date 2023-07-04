@@ -5,32 +5,92 @@ pragma solidity ^0.8.9;
 import "./../utils/DepositWithdraw.sol";
 import "./IZizyCompetitionStaking.sol";
 
-// Stake Rewards Contract
+/**
+ * @title Stake Rewards Contract
+ * @notice This contract manages the distribution of rewards to stakers based on vesting periods. It inherits from the DepositWithdraw contract
+ */
 contract StakeRewards is DepositWithdraw {
     uint constant MAX_UINT = (2 ** 256) - 1;
 
+    /**
+     * @notice This event is emitted when a vesting reward is created for an account.
+     * @param rewardId The ID of the reward.
+     * @param vestingIndex The index of the vesting period.
+     * @param chainId The ID of the chain.
+     * @param rewardType The type of the reward (Token, Native, ZizyStakingPercentage).
+     * @param contractAddress The address of the contract (only for Token rewards).
+     * @param account The account address.
+     * @param amount The amount of the reward.
+     */
     event AccountVestingRewardCreate(uint rewardId, uint vestingIndex, uint chainId, RewardType rewardType, address contractAddress, address indexed account, uint amount);
+
+    /**
+     * @notice This event is emitted when a reward is claimed for a different chain. (Reward distribution service will catch this event & Send the reward)
+     * @param rewardId The ID of the reward.
+     * @param vestingIndex The index of the vesting period.
+     * @param chainId The ID of the chain.
+     * @param rewardType The type of the reward (Token, Native, ZizyStakingPercentage).
+     * @param contractAddress The address of the contract (only for Token rewards).
+     * @param account The account address.
+     * @param baseAmount The base amount of the reward.
+     * @param boostedAmount The boosted amount of the reward.
+     */
     event RewardClaimDiffChain(uint rewardId, uint vestingIndex, uint chainId, RewardType rewardType, address contractAddress, address indexed account, uint baseAmount, uint boostedAmount);
+
+    /**
+     * @notice This event is emitted when a reward is claimed on the same chain.
+     * @param rewardId The ID of the reward.
+     * @param vestingIndex The index of the vesting period.
+     * @param chainId The ID of the chain.
+     * @param rewardType The type of the reward (Token, Native, ZizyStakingPercentage).
+     * @param contractAddress The address of the contract (only for Token rewards).
+     * @param account The account address.
+     * @param baseAmount The base amount of the reward.
+     * @param boostedAmount The boosted amount of the reward.
+     */
     event RewardClaimSameChain(uint rewardId, uint vestingIndex, uint chainId, RewardType rewardType, address contractAddress, address indexed account, uint baseAmount, uint boostedAmount);
+
+    /**
+     * @notice This event is emitted when a reward is updated with the total distribution amount.
+     * @param rewardId The ID of the reward.
+     * @param chainId The ID of the chain.
+     * @param rewardType The type of the reward (Token, Native, ZizyStakingPercentage).
+     * @param contractAddress The address of the contract (only for Token rewards).
+     * @param totalDistribution The total amount distributed for the reward.
+     */
     event RewardUpdated(uint rewardId, uint chainId, RewardType rewardType, address contractAddress, uint totalDistribution);
+
+    /**
+     * @notice This event is emitted when the reward configuration is updated.
+     * @param rewardId The ID of the reward.
+     * @param vestingEnabled The flag indicating if vesting is enabled for the reward.
+     * @param snapshotMin The minimum snapshot ID for reward calculations.
+     * @param snapshotMax The maximum snapshot ID for reward calculations.
+     * @param vestingDayInterval The interval in days for vesting periods.
+     */
     event RewardConfigUpdated(uint rewardId, bool vestingEnabled, uint snapshotMin, uint snapshotMax, uint vestingDayInterval);
+
+    /**
+     * @notice This event is emitted when a reward is cleared.
+     * @param rewardId The ID of the reward.
+     */
     event RewardClear(uint rewardId);
 
-    // Reward Type
+    /// @notice Enum for reward types
     enum RewardType {
         Token,
         Native,
         ZizyStakingPercentage
     }
 
-    // Reward Booster Type
+    /// @notice Enum for reward booster types
     enum BoosterType {
         HoldingNFT,
         ERC20Balance,
         StakingBalance
     }
 
-    // Reward Booster
+    /// @notice Struct for reward booster
     struct Booster {
         BoosterType boosterType;
         address contractAddress; // Booster target contract
@@ -39,14 +99,14 @@ contract StakeRewards is DepositWithdraw {
         bool _exist;
     }
 
-    // Reward Tier
+    /// @notice Struct for reward tier
     struct RewardTier {
         uint stakeMin;
         uint stakeMax;
         uint rewardAmount;
     }
 
-    // Reward Struct
+    /// @notice Struct for reward
     struct Reward {
         uint chainId;
         RewardType rewardType;
@@ -57,7 +117,7 @@ contract StakeRewards is DepositWithdraw {
         bool _exist;
     }
 
-    // Account Reward Struct
+    /// @notice Struct for account reward
     struct AccountReward {
         uint chainId;
         RewardType rewardType;
@@ -67,7 +127,7 @@ contract StakeRewards is DepositWithdraw {
         bool _exist;
     }
 
-    // Reward Config
+    /// @notice Struct for reward config
     struct RewardConfig {
         bool vestingEnabled;
         uint vestingInterval; // 7 days
@@ -78,69 +138,77 @@ contract StakeRewards is DepositWithdraw {
         bool _exist;
     }
 
-    // Cache average
+    /// @notice Struct for cache average
     struct CacheAverage {
         uint average;
         bool _exist;
     }
 
-    // Account base reward
+    /// @notice Struct for account base reward
     struct AccBaseReward {
         uint baseReward;
         bool _exist;
     }
 
-    // Reward definer account
+    /// @notice Reward definer account
     address public rewardDefiner;
 
-    // Booster ids for iteration
+    /// @dev Booster ids for iteration
     uint16[] private _boosterIds;
 
-    // Reward boosters [boosterId > Booster]
+    /// @dev Reward boosters [boosterId > Booster]
     mapping(uint16 => Booster) private _boosters;
 
-    // Reward configs [rewardId > RewardConfig]
+    /// @notice Reward configs [rewardId > RewardConfig]
     mapping(uint => RewardConfig) public rewardConfig;
 
-    // Reward tiers [rewardId > RewardTier[]]
+    /// @dev Reward tiers [rewardId > RewardTier[]]
     mapping(uint => RewardTier[]) private _rewardTiers;
 
-    // Rewards [rewardId > Reward]
+    /// @dev Rewards [rewardId > Reward]
     mapping(uint => Reward) private _rewards;
 
-    // Account rewards [rewardId > address > vestingIndex > Reward]
+    /// @dev Account rewards [rewardId > address > vestingIndex > Reward]
     mapping(uint => mapping(address => mapping(uint => AccountReward))) private _accountRewards;
 
-    // Account reward vesting periods defined [rewardId > address > bool]
+    /// @dev Account reward vesting periods defined [rewardId > address > bool]
     mapping(uint => mapping(address => bool)) private _accountRewardVestingPrepare;
 
-    // Account average cache. Gas save for same snapshot range average calculations
+    /// @dev Account average cache. Gas save for same snapshot range average calculations
     mapping(address => mapping(bytes32 => CacheAverage)) private _accountAverageCache;
 
-    // Account total base reward (Sum of vestings) [address > rewardId > allocation]
+    /// @dev Account total base reward (Sum of vestings) [address > rewardId > allocation]
     mapping(address => mapping(uint => AccBaseReward)) private _accountBaseReward;
 
-    // Reward claim state for rewardId [Using for clear rewards] [rewardId > bool]
+    /// @dev Reward claim state for rewardId [Using for clear rewards] [rewardId > bool]
     mapping(uint => bool) private _isRewardClaimed;
 
-    // Staking contract
+    /// @dev Staking contract
     IZizyCompetitionStaking private stakingContract;
 
-
-
-    // Only reward definer modifier
+    /**
+     * @dev Modifier that allows only the reward definer to execute a function.
+     */
     modifier onlyRewardDefiner() {
         require(_msgSender() == rewardDefiner, "Only call from reward definer address");
         _;
     }
 
-    // Only accept staking contract is defined
+    /**
+     * @dev Modifier that ensures the staking contract address is defined.
+     */
     modifier stakingContractIsSet() {
         require(address(stakingContract) != address(0), "Staking contract address must be defined");
         _;
     }
 
-    // Initializer
+    /**
+     * @notice Initializes the StakeRewards contract.
+     * @param stakingContract_ The address of the staking contract.
+     * @param rewardDefiner_ The address of the reward definer.
+     *
+     * @dev This function is used to initialize the StakeRewards contract. It sets the staking contract address and the reward definer address.
+     */
     function initialize(address stakingContract_, address rewardDefiner_) external initializer {
         __Ownable_init();
 
@@ -148,27 +216,59 @@ contract StakeRewards is DepositWithdraw {
         setRewardDefiner(rewardDefiner_);
     }
 
-    // Get chainId
+    /**
+     * @notice Retrieves the chain ID.
+     * @return The chain ID.
+     *
+     * @dev This function returns the chain ID of the current blockchain.
+     */
     function chainId() public view returns (uint) {
         return block.chainid;
     }
 
-    // Get cache key for snapshot range calculation
+    /**
+     * @notice Generates a cache key for snapshot range calculation.
+     * @param min_ The minimum snapshot value.
+     * @param max_ The maximum snapshot value.
+     * @return The cache key.
+     *
+     * @dev This function generates a cache key based on the minimum and maximum snapshot values provided.
+     */
     function _cacheKey(uint min_, uint max_) internal pure returns (bytes32) {
         return keccak256(abi.encode(min_, max_));
     }
 
-    // Set average calculation
+    /**
+     * @notice Sets the average calculation for an account within a specific snapshot range.
+     * @param account_ The account address.
+     * @param min_ The minimum snapshot value.
+     * @param max_ The maximum snapshot value.
+     * @param average_ The average value to be set.
+     *
+     * @dev This function sets the average calculation for an account within a specific snapshot range.
+     */
     function _setAverageCalculation(address account_, uint min_, uint max_, uint average_) internal {
         _accountAverageCache[account_][_cacheKey(min_, max_)] = CacheAverage(average_, true);
     }
 
-    // Get booster
+    /**
+     * @notice Retrieves the details of a booster by its ID.
+     * @param boosterId_ The ID of the booster.
+     * @return The booster details.
+     *
+     * @dev This function returns the details of a booster by its ID.
+     */
     function getBooster(uint16 boosterId_) public view returns (Booster memory) {
         return _boosters[boosterId_];
     }
 
-    // Get booster index
+    /**
+     * @notice Retrieves the index of a booster by its ID.
+     * @param boosterId_ The ID of the booster.
+     * @return The index of the booster.
+     *
+     * @dev This function returns the index of a booster by its ID. It reverts if the booster does not exist.
+     */
     function getBoosterIndex(uint16 boosterId_) public view returns (uint) {
         require(_boosters[boosterId_]._exist == true, "Booster is not exist");
         uint boosterCount = getBoosterCount();
@@ -182,12 +282,27 @@ contract StakeRewards is DepositWithdraw {
         revert("Booster index not found !");
     }
 
-    // Get boosters count
+    /**
+     * @notice Retrieves the total number of boosters.
+     * @return The count of boosters.
+     *
+     * @dev This function returns the total number of boosters.
+     */
     function getBoosterCount() public view returns (uint) {
         return _boosterIds.length;
     }
 
-    // Set & Update booster
+    /**
+     * @notice Sets or updates a booster.
+     * @param boosterId_ The ID of the booster.
+     * @param type_ The type of the booster (HoldingNFT, ERC20Balance, StakingBalance).
+     * @param contractAddress_ The address of the contract (for ERC20Balance and HoldingNFT boosters).
+     * @param amount_ The amount required for the booster (for ERC20Balance and StakingBalance boosters).
+     * @param boostPercentage_ The boost percentage for the booster.
+     *
+     * @dev This function sets or updates a booster with the given parameters. It validates the inputs based on the booster type.
+     *      If the booster ID doesn't exist, it adds the booster ID to the list of booster IDs.
+     */
     function setBooster(uint16 boosterId_, BoosterType type_, address contractAddress_, uint amount_, uint boostPercentage_) public onlyRewardDefiner {
         // Validate
         if (type_ == BoosterType.ERC20Balance || type_ == BoosterType.StakingBalance) {
@@ -211,7 +326,13 @@ contract StakeRewards is DepositWithdraw {
         _boosters[boosterId_] = Booster(type_, contractAddress_, amount_, boostPercentage_, true);
     }
 
-    // Remove booster
+    /**
+     * @notice Removes a booster.
+     * @param boosterId_ The ID of the booster to be removed.
+     *
+     * @dev This function removes the booster with the given ID. It checks if the booster exists and updates its values to default.
+     *      It also removes the booster ID from the list of booster IDs.
+     */
     function removeBooster(uint16 boosterId_) public onlyRewardDefiner {
         Booster memory booster = getBooster(boosterId_);
         require(booster._exist == true, "Booster does not exist");
@@ -234,7 +355,17 @@ contract StakeRewards is DepositWithdraw {
         }
     }
 
-    // Get account reward booster percentage
+    /**
+     * @notice Get the account's reward booster percentage.
+     * @param account_ The address of the account.
+     * @return The total boost percentage for the account based on the defined boosters.
+     *
+     * @dev This function calculates the total boost percentage for the given account by iterating through the boosters.
+     *      It checks if each booster exists and applies the corresponding boost percentage based on the booster type.
+     *      - For BoosterType.StakingBalance: If the staking balance is higher than the specified amount, the boost percentage is added.
+     *      - For BoosterType.ERC20Balance: If the ERC20 balance is higher than the specified amount, the boost percentage is added.
+     *      - For BoosterType.HoldingNFT: If the account holds at least one NFT of the specified contract, the boost percentage is added.
+     */
     function getAccountBoostPercentage(address account_) public view returns (uint) {
         uint percentage = 0;
         uint boosterCount = getBoosterCount();
@@ -268,25 +399,48 @@ contract StakeRewards is DepositWithdraw {
         return percentage;
     }
 
-    // Get average calculation
+    /**
+     * @notice Get the average calculation for snapshots within the specified range.
+     * @param account_ The address of the account.
+     * @param min_ The minimum snapshot value.
+     * @param max_ The maximum snapshot value.
+     * @return The average calculation for the specified snapshots range.
+     *
+     * @dev This function retrieves the average calculation for the given account and snapshot range from the cache.
+     *      It returns the average calculation stored in the cache as a CacheAverage struct.
+     */
     function getSnapshotsAverageCalculation(address account_, uint min_, uint max_) public view returns (CacheAverage memory) {
         return _getAccountSnapshotsAverage(account_, min_, max_);
     }
 
-    // Set staking contract address
+    /**
+     * @notice Set the address of the staking contract.
+     * @param contract_ The address of the staking contract.
+     *
+     * @dev This function allows the owner to set the address of the staking contract.
+     *      It requires a non-zero contract address to be provided.
+     */
     function setStakingContract(address contract_) public onlyOwner {
         require(contract_ != address(0), "Contract address cant be zero address");
         stakingContract = IZizyCompetitionStaking(contract_);
     }
 
-    // Set reward definer address
+    /**
+     * @notice Set the address of the reward definer.
+     * @param rewardDefiner_ The address of the reward definer.
+     *
+     * @dev This function allows the owner to set the address of the reward definer.
+     *      It requires a non-zero reward definer address to be provided.
+     */
     function setRewardDefiner(address rewardDefiner_) public onlyOwner {
         require(rewardDefiner_ != address(0), "Reward definer address cant be zero address");
         rewardDefiner = rewardDefiner_;
     }
 
     /**
-     * @dev Validate reward type
+     * @dev Validate the reward type.
+     * @param reward_ The reward object to validate.
+     * @return A boolean indicating whether the reward type is valid.
      */
     function _validateReward(Reward memory reward_) internal pure returns (bool) {
         if (reward_.amount == 0) {
@@ -305,7 +459,13 @@ contract StakeRewards is DepositWithdraw {
         return true;
     }
 
-    // Check reward configs
+    /**
+     * @notice Check if the reward configurations are completed for a given reward ID.
+     * @param rewardId_ The ID of the reward to check.
+     * @return A boolean indicating whether the reward configurations are completed.
+     *
+     * @dev This function validates various conditions to ensure that the reward configurations are complete.
+     */
     function isRewardConfigsCompleted(uint rewardId_) public view returns (bool) {
         RewardConfig memory config = rewardConfig[rewardId_];
         Reward memory reward = _rewards[rewardId_];
@@ -329,7 +489,22 @@ contract StakeRewards is DepositWithdraw {
         return true;
     }
 
-    // Set & Update reward config
+    /**
+     * @notice Set or update the reward configuration for a given reward ID.
+     * @param rewardId_ The ID of the reward.
+     * @param vestingEnabled_ A boolean indicating whether vesting is enabled for the reward.
+     * @param vestingStartDate_ The start date of the vesting period (in UNIX timestamp).
+     * @param vestingDayInterval_ The number of days between each vesting period.
+     * @param vestingPeriodCount_ The total number of vesting periods.
+     * @param snapshotMin_ The minimum snapshot ID for calculating rewards.
+     * @param snapshotMax_ The maximum snapshot ID for calculating rewards.
+     *
+     * @dev This function allows the reward definer to set or update the reward configuration for a specific reward ID.
+     * The function performs various validations and checks before updating the configuration.
+     * If vesting is enabled, the vesting start date, vesting day interval, and vesting period count must be valid.
+     * The snapshot ranges must be within the valid range of snapshot IDs.
+     * Once the configuration is updated, the 'RewardConfigUpdated' event is emitted.
+     */
     function setRewardConfig(uint rewardId_, bool vestingEnabled_, uint vestingStartDate_, uint vestingDayInterval_, uint vestingPeriodCount_, uint snapshotMin_, uint snapshotMax_) public onlyRewardDefiner stakingContractIsSet {
         RewardConfig memory config = rewardConfig[rewardId_];
         require(_isRewardClaimed[rewardId_] == false, "This rewardId has claimed reward. Cant update");
@@ -358,12 +533,29 @@ contract StakeRewards is DepositWithdraw {
         emit RewardConfigUpdated(rewardId_, vestingEnabled_, snapshotMin_, snapshotMax_, vestingDayInterval_);
     }
 
-    // Get reward tiers count
+    /**
+     * @notice Get the number of reward tiers for a given reward ID.
+     *
+     * @param rewardId_ The ID of the reward.
+     * @return The number of reward tiers.
+     *
+     * @dev This function returns the count of reward tiers for a specific reward ID.
+     * It retrieves the length of the reward tiers array associated with the reward ID.
+     */
     function getRewardTierCount(uint rewardId_) public view returns (uint) {
         return _rewardTiers[rewardId_].length;
     }
 
-    // Get reward tier
+    /**
+     * @notice Get the reward tier at a specific index for a given reward ID.
+     *
+     * @param rewardId_ The ID of the reward.
+     * @param index_ The index of the reward tier.
+     * @return The reward tier.
+     *
+     * @dev This function retrieves the reward tier at the specified index from the reward tiers array
+     * associated with the given reward ID.
+     */
     function getRewardTier(uint rewardId_, uint index_) public view returns (RewardTier memory) {
         uint tierLength = getRewardTierCount(rewardId_);
         require(index_ < tierLength, "Tier index out of boundaries");
@@ -371,7 +563,17 @@ contract StakeRewards is DepositWithdraw {
         return _rewardTiers[rewardId_][index_];
     }
 
-    // Set & Update reward tiers
+    /**
+     * @notice Set or update the reward tiers for a given reward ID.
+     *
+     * @param rewardId_ The ID of the reward.
+     * @param tiers_ The array of reward tiers to be set or updated.
+     *
+     * @dev This function sets or updates the reward tiers for a specific reward ID. It clears the existing
+     * reward tiers for the given reward ID and then adds the new reward tiers from the provided array.
+     * The tier length must be greater than 1, and each tier's stake minimum must be greater than the maximum
+     * of the previous tier to avoid range collisions.
+     */
     function setRewardTiers(uint rewardId_, RewardTier[] calldata tiers_) public onlyRewardDefiner {
         require(_isRewardClaimed[rewardId_] == false, "This rewardId has claimed reward. Cant update");
 
@@ -400,7 +602,20 @@ contract StakeRewards is DepositWithdraw {
         }
     }
 
-    // Set & Update reward
+    /**
+     * @notice Set or update a reward.
+     *
+     * @param rewardId_ The ID of the reward.
+     * @param chainId_ The ID of the chain.
+     * @param rewardType_ The type of the reward.
+     * @param contractAddress_ The address of the contract (only for Token rewards).
+     * @param amount_ The amount of the reward.
+     * @param percentage_ The boost percentage of the reward.
+     *
+     * @dev This internal function sets or updates a reward with the provided details. It validates the reward data
+     * and checks if the reward is already claimed. If the reward is already claimed, the function reverts.
+     * After updating the reward, it emits the `RewardUpdated` event.
+     */
     function _setReward(uint rewardId_, uint chainId_, RewardType rewardType_, address contractAddress_, uint amount_, uint percentage_) internal {
         require(_isRewardClaimed[rewardId_] == false, "This rewardId has claimed reward. Cant update");
         Reward memory currentReward = _rewards[rewardId_];
@@ -416,32 +631,83 @@ contract StakeRewards is DepositWithdraw {
         emit RewardUpdated(rewardId_, chainId_, rewardType_, contractAddress_, amount_);
     }
 
-    // Set native reward
+    /**
+     * @notice Set a native coin reward.
+     *
+     * @param rewardId_ The ID of the reward.
+     * @param chainId_ The ID of the chain.
+     * @param amount_ The amount of the reward.
+     *
+     * @dev This function sets a native reward with the provided details by calling the internal
+     * `_setReward` function with the reward type set to `RewardType.Native` and the contract address set to zero address.
+     */
     function setNativeReward(uint rewardId_, uint chainId_, uint amount_) public onlyRewardDefiner {
         _setReward(rewardId_, chainId_, RewardType.Native, address(0), amount_, 0);
     }
 
-    // Set token reward
+    /**
+     * @notice Set a token reward.
+     *
+     * @param rewardId_ The ID of the reward.
+     * @param chainId_ The ID of the chain.
+     * @param contractAddress_ The address of the contract.
+     * @param amount_ The amount of the reward.
+     *
+     * @dev This function sets a token reward with the provided details by calling the internal
+     * `_setReward` function with the reward type set to `RewardType.Token`.
+     */
     function setTokenReward(uint rewardId_, uint chainId_, address contractAddress_, uint amount_) public onlyRewardDefiner {
         _setReward(rewardId_, chainId_, RewardType.Token, contractAddress_, amount_, 0);
     }
 
-    // Set zizy stake percentage reward
+    /**
+     * @notice Set a Zizy stake percentage reward.
+     *
+     * @param rewardId_ The ID of the reward.
+     * @param contractAddress_ The address of the contract.
+     * @param amount_ The amount of the reward.
+     * @param percentage_ The boost percentage of the reward.
+     *
+     * @dev This function sets a Zizy stake percentage reward with the provided details by calling the internal
+     * `_setReward` function with the reward type set to `RewardType.ZizyStakingPercentage`.
+     * The chain ID is obtained using the `chainId()` function.
+     */
     function setZizyStakePercentageReward(uint rewardId_, address contractAddress_, uint amount_, uint percentage_) public onlyRewardDefiner {
         _setReward(rewardId_, chainId(), RewardType.ZizyStakingPercentage, contractAddress_, amount_, percentage_);
     }
 
-    // Get reward
+    /**
+     * @notice Get a reward by ID.
+     *
+     * @param rewardId_ The ID of the reward.
+     * @return The reward details.
+     */
     function getReward(uint rewardId_) public view returns (Reward memory) {
         return _rewards[rewardId_];
     }
 
-    // Get account reward
+    /**
+     * @notice Get an account reward by account address, reward ID, and vesting index.
+     *
+     * @param account_ The account address.
+     * @param rewardId_ The ID of the reward.
+     * @param index_ The index of the account reward.
+     * @return The account reward details.
+     */
     function getAccountReward(address account_, uint rewardId_, uint index_) public view returns (AccountReward memory) {
         return _accountRewards[rewardId_][account_][index_];
     }
 
-    // Claim rewards
+    /**
+     * @notice Claim rewards for an account and a specific reward with a vesting index.
+     *
+     * @param account_ The account address.
+     * @param rewardId_ The ID of the reward.
+     * @param vestingIndex_ The index of the vesting period.
+     *
+     * @dev This function allows an account to claim their rewards for a specific reward and vesting index.
+     * It performs various checks and calculations to determine the claimability and distribution of the rewards.
+     */
     function _claimReward(address account_, uint rewardId_, uint vestingIndex_) internal {
         AccountReward memory reward = _accountRewards[rewardId_][account_][vestingIndex_];
         require(isRewardClaimable(account_, rewardId_, vestingIndex_) == true, "Reward isnt claimable");
@@ -474,7 +740,14 @@ contract StakeRewards is DepositWithdraw {
         }
     }
 
-    // Check reward is claimable for public view
+    /**
+     * @notice Check if a reward is claimable for an account, reward ID, and vesting index.
+     *
+     * @param account_ The account address.
+     * @param rewardId_ The ID of the reward.
+     * @param vestingIndex_ The index of the vesting period.
+     * @return A boolean indicating if the reward is claimable.
+     */
     function isRewardClaimable(address account_, uint rewardId_, uint vestingIndex_) public view returns (bool) {
         // Check reward configs
         if (isRewardConfigsCompleted(rewardId_) == false) {
@@ -508,19 +781,40 @@ contract StakeRewards is DepositWithdraw {
         return true;
     }
 
-    // Claim single reward with vesting index
+    /**
+     * @notice Claim a single reward with a specific vesting index.
+     *
+     * @param rewardId_ The ID of the reward.
+     * @param vestingIndex_ The index of the vesting period.
+     *
+     * @dev This function allows an account to claim a specific reward with a vesting index.
+     * It prepares the vesting periods and performs the necessary checks and calculations for reward claiming.
+     */
     function claimReward(uint rewardId_, uint vestingIndex_) external nonReentrant {
         // Prepare vesting periods
         _prepareRewardVestingPeriods(_msgSender(), rewardId_);
         _claimReward(_msgSender(), rewardId_, vestingIndex_);
     }
 
-    // Check is vesting periods prepared before
+    /**
+     * @notice Check if the vesting periods are prepared for an account and a specific reward.
+     *
+     * @param account_ The account address.
+     * @param rewardId_ The ID of the reward.
+     * @return A boolean indicating if the vesting periods are prepared.
+     */
     function _isVestingPeriodsPrepared(address account_, uint rewardId_) internal view returns (bool) {
         return _accountRewardVestingPrepare[rewardId_][account_];
     }
 
-    // Get account snapshots average
+    /**
+     * @notice Get the average of account snapshots within a given range.
+     *
+     * @param account_ The account address.
+     * @param snapshotMin_ The minimum snapshot ID.
+     * @param snapshotMax_ The maximum snapshot ID.
+     * @return The average of account snapshots within the range.
+     */
     function _getAccountSnapshotsAverage(address account_, uint snapshotMin_, uint snapshotMax_) internal view returns (CacheAverage memory) {
         CacheAverage memory accAverage = _accountAverageCache[account_][_cacheKey(snapshotMin_, snapshotMax_)];
         if (accAverage._exist == false) {
@@ -529,7 +823,15 @@ contract StakeRewards is DepositWithdraw {
         return accAverage;
     }
 
-    // Get account reward details
+    /**
+     * @notice Get the details of an account's reward for a specific reward, snapshot range, and reward tier.
+     *
+     * @param account_ The account address.
+     * @param rewardId_ The ID of the reward.
+     * @param snapshotMin_ The minimum snapshot ID.
+     * @param snapshotMax_ The maximum snapshot ID.
+     * @return The account's base reward, the cache average, and the length of reward tiers.
+     */
     function getAccountRewardDetails(address account_, uint rewardId_, uint snapshotMin_, uint snapshotMax_) public view returns (AccBaseReward memory, CacheAverage memory, uint) {
         AccBaseReward memory baseReward = _accountBaseReward[account_][rewardId_];
         CacheAverage memory accAverage = _getAccountSnapshotsAverage(account_, snapshotMin_, snapshotMax_);
@@ -564,7 +866,15 @@ contract StakeRewards is DepositWithdraw {
         return (baseReward, accAverage, tierLength);
     }
 
-    // Prepare account reward vesting periods
+    /**
+     * @notice Prepare the vesting periods for an account and a specific reward.
+     *
+     * @param account_ The account address.
+     * @param rewardId_ The ID of the reward.
+     *
+     * @dev This function prepares the vesting periods for an account and a specific reward.
+     * It calculates the base reward, stores it in the state variable, and creates the vesting periods.
+     */
     function _prepareRewardVestingPeriods(address account_, uint rewardId_) internal {
         // Check prepared before for gas cost
         if (_isVestingPeriodsPrepared(account_, rewardId_) == true) {
