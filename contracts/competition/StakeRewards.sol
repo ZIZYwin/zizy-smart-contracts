@@ -600,7 +600,11 @@ contract StakeRewards is DepositWithdraw {
             bool isFirst = (i == 0);
             bool isLast = (i == (tierLength - 1));
 
+            // Set current tier min/max ranges
+            tier_.stakeMin = (isFirst ? tier_.stakeMin : (prevMax + 1));
             tier_.stakeMax = (isLast ? (MAX_UINT) : tier_.stakeMax);
+
+            require(tier_.stakeMin < tier_.stakeMax, "Tier min should be lower than max");
 
             if (!isFirst) {
                 require(tier_.stakeMin > prevMax, "Range collision");
