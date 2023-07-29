@@ -592,7 +592,6 @@ contract ZizyRewardsHub is OwnableUpgradeable, ReentrancyGuardUpgradeable, ERC72
      * @notice Fetches the count of airdrop rewards associated with the given receiver and airdrop ID
      * @param receiver_ The address of the receiver
      * @param airdropId_ The ID of the airdrop
-     * @return Returns the count of airdrop rewards for the given receiver and airdrop ID
      *
      * @dev This function fetches the count of airdrop rewards for the given receiver and airdrop ID from the
      * _airdropRewards mapping and returns it.
@@ -606,7 +605,6 @@ contract ZizyRewardsHub is OwnableUpgradeable, ReentrancyGuardUpgradeable, ERC72
      * @notice Fetches the count of unclaimed airdrop rewards associated with the given receiver and airdrop ID
      * @param receiver_ The address of the receiver
      * @param airdropId_ The ID of the airdrop
-     * @return Returns the count of unclaimed airdrop rewards for the given receiver and airdrop ID
      *
      * @dev This function fetches the total count of airdrop rewards for the given receiver and airdrop ID
      * from the _airdropRewards mapping and then counts the number of those rewards that are unclaimed.

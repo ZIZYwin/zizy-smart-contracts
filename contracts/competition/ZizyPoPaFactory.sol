@@ -166,6 +166,19 @@ contract ZizyPoPaFactory is OwnableUpgradeable, ReentrancyGuardUpgradeable {
     }
 
     /**
+     * @notice Checks if a claimed PoPA has been minted from system
+     * @param account The account to check the mint status for
+     * @param periodId The period ID of the PoPA
+     * @return A boolean indicating whether the PoPA has been claimed or not
+     *
+     * @dev This function is callable by any external account.
+     * It returns the mint status of the specified PoPA for the given account.
+     */
+    function popaMinted(address account, uint256 periodId) external view returns (bool) {
+        return _popaClaimMinted[account][periodId];
+    }
+
+    /**
      * @notice Gets the contract address of the PoPA NFT for a specific period ID
      * @param periodId The period ID of the PoPA
      * @return The contract address of the PoPA NFT for the given period ID
@@ -252,7 +265,7 @@ contract ZizyPoPaFactory is OwnableUpgradeable, ReentrancyGuardUpgradeable {
 
         require(_periodPopas[periodId_] == address(0), "Period popa already deployed");
 
-        ZizyPoPa popa = new ZizyPoPa(name_, symbol_, popaMinter);
+        ZizyPoPa popa = new ZizyPoPa(name_, symbol_, address(this));
         address contractAddress = address(popa);
         popa.transferOwnership(owner());
         _popas.push(address(popa));
