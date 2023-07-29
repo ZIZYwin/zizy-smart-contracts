@@ -182,6 +182,13 @@ contract ZizyCompetitionStaking is OwnableUpgradeable {
     }
 
     /**
+     * @dev Constructor function
+     */
+    constructor() {
+        _disableInitializers();
+    }
+
+    /**
      * @notice Initializes the contract with the specified parameters
      * @param stakeToken_ The address of the stake token
      * @param feeReceiver_ The address of the fee receiver

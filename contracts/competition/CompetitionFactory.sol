@@ -167,6 +167,13 @@ contract CompetitionFactory is OwnableUpgradeable, ReentrancyGuardUpgradeable {
     }
 
     /**
+     * @dev Constructor function
+     */
+    constructor() {
+        _disableInitializers();
+    }
+
+    /**
      * @notice Initializes the contract.
      * @param receiver_ The address to receive payments.
      * @param minter_ The address authorized to mint tickets.

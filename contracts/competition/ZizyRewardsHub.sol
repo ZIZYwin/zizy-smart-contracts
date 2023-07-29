@@ -128,6 +128,13 @@ contract ZizyRewardsHub is OwnableUpgradeable, ReentrancyGuardUpgradeable, ERC72
     }
 
     /**
+     * @dev Constructor function
+     */
+    constructor() {
+        _disableInitializers();
+    }
+
+    /**
      * @notice Initializes the smart contract
      * @param rewardDefiner_ The address of the reward definer.
      */

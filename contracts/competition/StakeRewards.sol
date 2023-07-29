@@ -203,6 +203,13 @@ contract StakeRewards is DepositWithdraw {
     }
 
     /**
+     * @dev Constructor function
+     */
+    constructor() {
+        _disableInitializers();
+    }
+
+    /**
      * @notice Initializes the StakeRewards contract.
      * @param stakingContract_ The address of the staking contract.
      * @param rewardDefiner_ The address of the reward definer.

@@ -83,6 +83,13 @@ contract ZizyPoPaFactory is OwnableUpgradeable, ReentrancyGuardUpgradeable {
     }
 
     /**
+     * @dev Constructor function
+     */
+    constructor() {
+        _disableInitializers();
+    }
+
+    /**
      * @notice Initializes the contract
      * @param competitionFactory_ The address of the CompetitionFactory contract
      *
