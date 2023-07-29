@@ -15,6 +15,11 @@ contract DepositWithdraw is OwnableUpgradeable, ReentrancyGuardUpgradeable, ERC7
     using SafeERC20Upgradeable for IERC20Upgradeable;
 
     /**
+     * @dev Storage gap for futures updates
+     */
+    uint256[49] private __gap;
+
+    /**
      * @notice Allows anyone to deposit native coin on the contract
      */
     function deposit() public payable {

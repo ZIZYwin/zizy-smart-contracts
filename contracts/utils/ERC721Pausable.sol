@@ -15,6 +15,11 @@ import "./Pausable.sol";
  */
 abstract contract ERC721Pausable is ERC721, Pausable {
     /**
+     * @dev Storage gap for futures updates
+     */
+    uint256[49] private __gap;
+
+    /**
      * @dev Hook that is called before any token transfer. This includes minting and burning. If {ERC721Consecutive} is
      * used, the hook may be called as part of a consecutive (batch) mint, as indicated by `batchSize` greater than 1.
      *
