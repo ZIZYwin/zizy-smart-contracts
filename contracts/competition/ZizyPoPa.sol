@@ -37,7 +37,6 @@ contract ZizyPoPa is ERC721, ERC721Enumerable, ERC721Pausable, Ownable {
      * @param symbol_ The symbol of the NFT contract.
      * @param minter_ The address of the minter account.
      *
-     * @inheritdoc ERC721
      */
     constructor(string memory name_, string memory symbol_, address minter_) ERC721(name_, symbol_) {
         _setMinter(minter_);
