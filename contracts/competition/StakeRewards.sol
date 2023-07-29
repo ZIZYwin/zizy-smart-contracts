@@ -520,7 +520,7 @@ contract StakeRewards is DepositWithdraw {
 
         uint currentSnapshot = stakingContract.getSnapshotId();
 
-        require(snapshotMin_ < currentSnapshot && snapshotMax_ < currentSnapshot, "Snapshot ranges is not correct");
+        require(snapshotMin_ < currentSnapshot && snapshotMax_ < currentSnapshot && snapshotMin_ <= snapshotMax_, "Snapshot ranges is not correct");
 
         // Check vesting day
         if (vestingEnabled_) {
