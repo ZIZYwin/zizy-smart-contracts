@@ -211,6 +211,8 @@ contract StakeRewards is DepositWithdraw {
      */
     function initialize(address stakingContract_, address rewardDefiner_) external initializer {
         __Ownable_init();
+        __ReentrancyGuard_init();
+        __ERC721Holder_init();
 
         setStakingContract(stakingContract_);
         setRewardDefiner(rewardDefiner_);
