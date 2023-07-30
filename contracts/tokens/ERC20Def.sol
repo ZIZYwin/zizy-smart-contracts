@@ -11,14 +11,14 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 contract ERC20Def is Context, ERC20, ERC20Burnable, Ownable {
     bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
 
-    uint8 private _decimals = 8;
+    uint8 constant DECIMALS = 8;
 
     constructor(string memory name_, string memory symbol_) ERC20(name_, symbol_) {
-        _mint(_msgSender(), (250_000_000 * (10 ** _decimals)));
+        _mint(_msgSender(), (250_000_000 * (10 ** DECIMALS)));
     }
 
     function decimals() public view virtual override returns (uint8) {
-        return _decimals;
+        return DECIMALS;
     }
 
     function _beforeTokenTransfer(
