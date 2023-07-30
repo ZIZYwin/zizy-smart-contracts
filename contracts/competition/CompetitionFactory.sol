@@ -245,7 +245,7 @@ contract CompetitionFactory is OwnableUpgradeable, ReentrancyGuardUpgradeable {
      * @param competitionId The ID of the competition.
      * @return A boolean indicating if the competition settings are defined.
      */
-    function isCompetitionSettingsDefined(uint256 periodId, uint256 competitionId) public view returns(bool) {
+    function isCompetitionSettingsDefined(uint256 periodId, uint256 competitionId) public view returns (bool) {
         Competition memory comp = _periodCompetitions[periodId][competitionId];
 
         // Check competition
@@ -383,11 +383,6 @@ contract CompetitionFactory is OwnableUpgradeable, ReentrancyGuardUpgradeable {
         }
 
         activePeriod = periodId;
-
-        // Set is over previous period
-        if (oldPeriod != 0) {
-            _periods[oldPeriod].isOver = true;
-        }
     }
 
     /**
