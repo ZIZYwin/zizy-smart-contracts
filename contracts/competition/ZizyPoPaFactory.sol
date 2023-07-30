@@ -349,13 +349,15 @@ contract ZizyPoPaFactory is OwnableUpgradeable, ReentrancyGuardUpgradeable {
             revert("Claim conditions not met");
         }
 
+        // Set popaClaimed state
+        _popaClaimed[_msgSender()][periodId_] = true;
+
         // Transfer claim payment to minter
         (bool success,) = popaMinter.call{value : msg.value}("");
         if (success == false) {
             revert("Transfer failed");
         }
 
-        _popaClaimed[_msgSender()][periodId_] = true;
         emit PopaClaimed(_msgSender(), periodId_);
     }
 
