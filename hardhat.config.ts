@@ -1,12 +1,12 @@
 import * as dotenv from "dotenv";
 
-import { HardhatUserConfig, task } from "hardhat/config";
+import { HardhatUserConfig } from "hardhat/config";
 import "@nomiclabs/hardhat-etherscan";
 import "@nomiclabs/hardhat-waffle";
 import "@typechain/hardhat";
 import "hardhat-gas-reporter";
 import "@openzeppelin/hardhat-upgrades";
-import { registerTasks } from "./tasks/index";
+import { registerTasks } from "./tasks";
 
 dotenv.config();
 
@@ -40,7 +40,7 @@ const testnetAccounts: string[] = (process.env.ACCOUNTS_TESTNET || "").split(","
 
 const config: HardhatUserConfig = {
   solidity: {
-    version: "0.8.9",
+    version: "0.8.17",
     settings: {
       optimizer: {
         enabled: true,
@@ -73,8 +73,8 @@ const config: HardhatUserConfig = {
       url: "https://polygon-rpc.com/",
       accounts: mainnetAccounts,
       chainId: 137,
-      gasPrice: 200_000000000,
-      allowUnlimitedContractSize: true,
+      gasPrice: 250_000000000,
+      allowUnlimitedContractSize: true
     },
     avaxc: {
       url: "https://api.avax.network/ext/bc/C/rpc",
