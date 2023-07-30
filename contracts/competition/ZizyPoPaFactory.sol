@@ -154,7 +154,7 @@ contract ZizyPoPaFactory is OwnableUpgradeable, ReentrancyGuardUpgradeable {
      * @dev Throws an error if the percentage is not between 0 and 100.
      */
     function _setPopaClaimAllocationPercentage(uint percentage) internal {
-        require(percentage >= 0 && percentage <= 100, "Allocation percentage should between 0-100");
+        require(percentage <= 100, "Allocation percentage should between 0-100");
         _popaClaimAllocationPercentage = percentage;
         emit AllocationPercentageUpdated(percentage);
     }
