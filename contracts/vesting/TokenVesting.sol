@@ -187,11 +187,8 @@ contract TokenVesting is Ownable, ReentrancyGuard {
             "TokenVesting: cannot release tokens, not enough vested tokens"
         );
         vestingSchedule.released = vestingSchedule.released + amount;
-        address payable beneficiaryPayable = payable(
-            vestingSchedule.beneficiary
-        );
         vestingSchedulesTotalAmount = vestingSchedulesTotalAmount - amount;
-        SafeERC20.safeTransfer(_token, beneficiaryPayable, amount);
+        SafeERC20.safeTransfer(_token, vestingSchedule.beneficiary, amount);
 
         emit TokenReleased(vestingScheduleId, amount);
     }
