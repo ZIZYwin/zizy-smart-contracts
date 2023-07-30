@@ -328,9 +328,12 @@ contract ZizyPoPaFactory is OwnableUpgradeable, ReentrancyGuardUpgradeable {
      * or the claim conditions are not met.
      */
     function claim(uint256 periodId_) external payable nonReentrant {
-        // Check payment limit
+        // Check payment limits
         if (msg.value < claimPayment) {
             revert("Insufficient claim payment");
+        }
+        if (msg.value > claimPayment) {
+            revert("Overpayment. Please reduce your payment amount");
         }
 
         address popaContract = _periodPopas[periodId_];
