@@ -8,13 +8,12 @@ import "@openzeppelin/contracts/access/AccessControl.sol";
 
 // @dev We building sth big. Stay tuned!
 contract ZizyERC20 is Context, ERC20, ERC20Burnable, AccessControl {
-
-    uint8 private _decimals = 8;
+    uint8 constant DECIMALS = 8;
 
     constructor(string memory name_, string memory symbol_) ERC20(name_, symbol_) {
         _grantRole(DEFAULT_ADMIN_ROLE, _msgSender());
 
-        _mint(_msgSender(), (150_000_000 * (10 ** _decimals)));
+        _mint(_msgSender(), (150_000_000 * (10 ** DECIMALS)));
     }
 
     function setRoleAdmin(bytes32 role, bytes32 adminRole) public onlyRole(getRoleAdmin(role)) {
@@ -22,7 +21,7 @@ contract ZizyERC20 is Context, ERC20, ERC20Burnable, AccessControl {
     }
 
     function decimals() public view virtual override returns (uint8) {
-        return _decimals;
+        return DECIMALS;
     }
 
     function _beforeTokenTransfer(
