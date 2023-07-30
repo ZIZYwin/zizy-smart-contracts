@@ -249,15 +249,15 @@ contract CompetitionFactory is OwnableUpgradeable, ReentrancyGuardUpgradeable {
         Competition memory comp = _periodCompetitions[periodId][competitionId];
 
         // Check competition
-        if (comp._exist == false) {
+        if (!comp._exist) {
             return false;
         }
         // Check competition tiers
-        if (_isCompetitionTiersDefined(periodId, competitionId) == false) {
+        if (!_isCompetitionTiersDefined(periodId, competitionId)) {
             return false;
         }
         // Check sellToken & price
-        if (comp.pairDefined == false) {
+        if (!comp.pairDefined) {
             return false;
         }
 
@@ -271,7 +271,7 @@ contract CompetitionFactory is OwnableUpgradeable, ReentrancyGuardUpgradeable {
      * @return A boolean indicating if tickets can be bought.
      */
     function canTicketBuy(uint256 periodId, uint256 competitionId) external view returns (bool) {
-        if (isCompetitionSettingsDefined(periodId, competitionId) == false) {
+        if (!isCompetitionSettingsDefined(periodId, competitionId)) {
             return false;
         }
 
@@ -314,7 +314,7 @@ contract CompetitionFactory is OwnableUpgradeable, ReentrancyGuardUpgradeable {
         require(comp.snapshotMin > 0 && comp.snapshotMax > 0 && comp.snapshotMin <= comp.snapshotMax, "Competition snapshot ranges is not defined");
         (uint256 average, bool _calculated) = stakingContract.getPeriodSnapshotsAverage(account, periodId, comp.snapshotMin, comp.snapshotMax);
 
-        require(_calculated == true, "Period snapshot averages does not calculated !");
+        require(_calculated, "Period snapshot averages does not calculated !");
 
         bytes32 compHash = _competitionKey(periodId, competitionId);
         Tier[] memory tiers = _compTiers[compHash];
@@ -371,8 +371,8 @@ contract CompetitionFactory is OwnableUpgradeable, ReentrancyGuardUpgradeable {
         uint256 oldPeriod = activePeriod;
         require(oldPeriod != periodId, "This period already active");
         Period memory period = _periods[periodId];
-        require(period._exist == true, "Period does not exist");
-        require(period.isOver == false, "This period is over");
+        require(period._exist, "Period does not exist");
+        require(!period.isOver, "This period is over");
 
         (uint256 response) = stakingContract.setPeriodId(periodId);
         require(response == periodId, "ZizyComp: Staking contract period can't updated");
@@ -401,7 +401,7 @@ contract CompetitionFactory is OwnableUpgradeable, ReentrancyGuardUpgradeable {
      */
     function createPeriod(uint newPeriodId, uint startTime_, uint endTime_, uint ticketBuyStart_, uint ticketBuyEnd_) external stakeContractIsSet onlyOwner returns (uint256) {
         require(newPeriodId > 0, "New period id should be higher than zero");
-        require(_periods[newPeriodId]._exist == false, "Period id already exist");
+        require(!_periods[newPeriodId]._exist, "Period id already exist");
 
         _periods[newPeriodId] = Period(startTime_, endTime_, ticketBuyStart_, ticketBuyEnd_, 0, false, true);
 
@@ -423,7 +423,7 @@ contract CompetitionFactory is OwnableUpgradeable, ReentrancyGuardUpgradeable {
      */
     function updatePeriod(uint periodId_, uint startTime_, uint endTime_, uint ticketBuyStart_, uint ticketBuyEnd_) external onlyOwner returns (bool) {
         Period storage period = _periods[periodId_];
-        require(period._exist == true, "There is no period exist");
+        require(period._exist, "There is no period exist");
 
         period.startTime = startTime_;
         period.endTime = endTime_;
@@ -443,10 +443,10 @@ contract CompetitionFactory is OwnableUpgradeable, ReentrancyGuardUpgradeable {
      */
     function createCompetition(uint periodId, uint256 competitionId, string memory name_, string memory symbol_) external ticketDeployerIsSet onlyOwner returns (address, uint256, uint256) {
         Period memory period = _periods[periodId];
-        require(period._exist == true, "Period does not exist");
-        require(period.isOver == false, "This period is over");
+        require(period._exist, "Period does not exist");
+        require(!period.isOver, "This period is over");
 
-        require(_periodCompetitions[periodId][competitionId]._exist == false, "Competition already exist");
+        require(!_periodCompetitions[periodId][competitionId]._exist, "Competition already exist");
 
         // Deploy competition ticket contract
         (, address ticketContract) = ticketDeployer.deploy(name_, symbol_);
@@ -498,7 +498,7 @@ contract CompetitionFactory is OwnableUpgradeable, ReentrancyGuardUpgradeable {
         (uint periodMin, uint periodMax) = stakingContract.getPeriodSnapshotRange(periodId);
         require(min >= periodMin && max <= periodMax, "Range should between period snapshot ranges");
         Competition storage comp = _periodCompetitions[periodId][competitionId];
-        require(comp._exist == true, "There is no competition");
+        require(comp._exist, "There is no competition");
 
         comp.snapshotMin = min;
         comp.snapshotMax = max;
@@ -559,13 +559,13 @@ contract CompetitionFactory is OwnableUpgradeable, ReentrancyGuardUpgradeable {
     function buyTicket(uint256 periodId, uint256 competitionId, uint32 ticketCount) external paymentReceiverIsSet nonReentrant {
         require(ticketCount > 0, "Requested ticket count should be higher than zero");
         Competition memory comp = _periodCompetitions[periodId][competitionId];
-        require(comp.pairDefined == true, "Ticket sell pair is not defined");
+        require(comp.pairDefined, "Ticket sell pair is not defined");
         require((comp.ticketSold + ticketCount) <= MAX_TICKET_PER_COMPETITION, "Tickets are out of stock for this competition");
 
         Allocation memory alloc = _getAllocation(_msgSender(), periodId, competitionId);
 
         // Store calculated competition allocation
-        if (alloc.hasAllocation == true && _allocations[_msgSender()][periodId][competitionId].hasAllocation == false) {
+        if (alloc.hasAllocation && !_allocations[_msgSender()][periodId][competitionId].hasAllocation) {
             // Write calculated competition allocation into storage
             _allocations[_msgSender()][periodId][competitionId] = alloc;
 
@@ -626,7 +626,7 @@ contract CompetitionFactory is OwnableUpgradeable, ReentrancyGuardUpgradeable {
      */
     function mintTicket(uint256 periodId, uint256 competitionId, address to_, uint256 ticketId_) external onlyMinter {
         Competition memory comp = _periodCompetitions[periodId][competitionId];
-        require(comp._exist == true, "Competition does not exist");
+        require(comp._exist, "Competition does not exist");
 
         Allocation memory alloc = _getAllocation(to_, periodId, competitionId);
         uint accountTicketBalance = comp.ticket.balanceOf(to_);
@@ -648,7 +648,7 @@ contract CompetitionFactory is OwnableUpgradeable, ReentrancyGuardUpgradeable {
         require(length > 0, "Ticket ids length should be higher than zero");
 
         Competition memory comp = _periodCompetitions[periodId][competitionId];
-        require(comp._exist == true, "Competition does not exist");
+        require(comp._exist, "Competition does not exist");
 
         Allocation memory alloc = _getAllocation(to_, periodId, competitionId);
         uint accountTicketBalance = comp.ticket.balanceOf(to_);

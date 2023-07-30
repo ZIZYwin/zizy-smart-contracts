@@ -279,7 +279,7 @@ contract StakeRewards is DepositWithdraw {
      * @dev This function returns the index of a booster by its ID. It reverts if the booster does not exist.
      */
     function getBoosterIndex(uint16 boosterId_) public view returns (uint) {
-        require(_boosters[boosterId_]._exist == true, "Booster is not exist");
+        require(_boosters[boosterId_]._exist, "Booster is not exist");
         uint boosterCount = getBoosterCount();
         uint16[] memory ids = _boosterIds;
 
@@ -328,7 +328,7 @@ contract StakeRewards is DepositWithdraw {
             contractAddress_ = address(0);
         }
 
-        if (_boosters[boosterId_]._exist == false) {
+        if (!_boosters[boosterId_]._exist) {
             _boosterIds.push(boosterId_);
         }
 
@@ -344,7 +344,7 @@ contract StakeRewards is DepositWithdraw {
      */
     function removeBooster(uint16 boosterId_) public onlyRewardDefiner {
         Booster memory booster = getBooster(boosterId_);
-        require(booster._exist == true, "Booster does not exist");
+        require(booster._exist, "Booster does not exist");
 
         uint boosterCount = getBoosterCount();
 
@@ -383,7 +383,7 @@ contract StakeRewards is DepositWithdraw {
         for (uint i = 0; i < boosterCount; i++) {
             uint16 boosterId = ids[i];
             Booster memory booster = _boosters[boosterId];
-            if (booster._exist == false) {
+            if (!booster._exist) {
                 continue;
             }
 
@@ -516,7 +516,7 @@ contract StakeRewards is DepositWithdraw {
      */
     function setRewardConfig(uint rewardId_, bool vestingEnabled_, uint vestingStartDate_, uint vestingDayInterval_, uint vestingPeriodCount_, uint snapshotMin_, uint snapshotMax_) public onlyRewardDefiner stakingContractIsSet {
         RewardConfig memory config = rewardConfig[rewardId_];
-        require(_isRewardClaimed[rewardId_] == false, "This rewardId has claimed reward. Cant update");
+        require(!_isRewardClaimed[rewardId_], "This rewardId has claimed reward. Cant update");
 
         uint currentSnapshot = stakingContract.getSnapshotId();
 
@@ -530,9 +530,9 @@ contract StakeRewards is DepositWithdraw {
         }
 
         config.vestingEnabled = vestingEnabled_;
-        config.vestingInterval = (vestingEnabled_ == true ? (vestingDayInterval_ * (1 days)) : 0);
-        config.vestingPeriodCount = (vestingEnabled_ == true ? vestingPeriodCount_ : 1);
-        config.vestingStartDate = (vestingEnabled_ == true ? vestingStartDate_ : 0);
+        config.vestingInterval = (vestingEnabled_ ? (vestingDayInterval_ * (1 days)) : 0);
+        config.vestingPeriodCount = (vestingEnabled_ ? vestingPeriodCount_ : 1);
+        config.vestingStartDate = (vestingEnabled_ ? vestingStartDate_ : 0);
         config.snapshotMin = snapshotMin_;
         config.snapshotMax = snapshotMax_;
         config._exist = true;
@@ -584,7 +584,7 @@ contract StakeRewards is DepositWithdraw {
      * of the previous tier to avoid range collisions.
      */
     function setRewardTiers(uint rewardId_, RewardTier[] calldata tiers_) public onlyRewardDefiner {
-        require(_isRewardClaimed[rewardId_] == false, "This rewardId has claimed reward. Cant update");
+        require(!_isRewardClaimed[rewardId_], "This rewardId has claimed reward. Cant update");
 
         uint tierLength = tiers_.length;
         require(tierLength > 1, "Tier length should be higher than 1");
@@ -630,12 +630,12 @@ contract StakeRewards is DepositWithdraw {
      * After updating the reward, it emits the `RewardUpdated` event.
      */
     function _setReward(uint rewardId_, uint chainId_, RewardType rewardType_, address contractAddress_, uint amount_, uint percentage_) internal {
-        require(_isRewardClaimed[rewardId_] == false, "This rewardId has claimed reward. Cant update");
+        require(!_isRewardClaimed[rewardId_], "This rewardId has claimed reward. Cant update");
         Reward memory currentReward = _rewards[rewardId_];
         Reward memory reward = Reward(chainId_, rewardType_, contractAddress_, amount_, 0, percentage_, false);
-        require(_validateReward(reward) == true, "Reward data is not correct");
+        require(_validateReward(reward), "Reward data is not correct");
 
-        if (currentReward._exist == true && _isRewardClaimed[rewardId_] == true) {
+        if (currentReward._exist && _isRewardClaimed[rewardId_]) {
             revert("Cant set/update claimed reward");
         }
 
@@ -723,7 +723,7 @@ contract StakeRewards is DepositWithdraw {
      */
     function _claimReward(address account_, uint rewardId_, uint vestingIndex_) internal {
         AccountReward memory reward = _accountRewards[rewardId_][account_][vestingIndex_];
-        require(isRewardClaimable(account_, rewardId_, vestingIndex_) == true, "Reward isnt claimable");
+        require(isRewardClaimable(account_, rewardId_, vestingIndex_), "Reward isnt claimable");
 
         // Set claim state first [Reentrancy ? :)]
         _accountRewards[rewardId_][account_][vestingIndex_].isClaimed = true;
@@ -763,7 +763,7 @@ contract StakeRewards is DepositWithdraw {
      */
     function isRewardClaimable(address account_, uint rewardId_, uint vestingIndex_) public view returns (bool) {
         // Check reward configs
-        if (isRewardConfigsCompleted(rewardId_) == false) {
+        if (!isRewardConfigsCompleted(rewardId_)) {
             return false;
         }
 
@@ -773,8 +773,8 @@ contract StakeRewards is DepositWithdraw {
         (AccBaseReward memory baseReward, ,) = getAccountRewardDetails(account_, rewardId_, config.snapshotMin, config.snapshotMax);
         uint ts = block.timestamp;
 
-        if (_isVestingPeriodsPrepared(account_, rewardId_) == true) {
-            if (reward._exist == false || reward.isClaimed == true) {
+        if (_isVestingPeriodsPrepared(account_, rewardId_)) {
+            if (!reward._exist || reward.isClaimed) {
                 return false;
             }
         } else {
@@ -830,7 +830,7 @@ contract StakeRewards is DepositWithdraw {
      */
     function _getAccountSnapshotsAverage(address account_, uint snapshotMin_, uint snapshotMax_) internal view returns (CacheAverage memory) {
         CacheAverage memory accAverage = _accountAverageCache[account_][_cacheKey(snapshotMin_, snapshotMax_)];
-        if (accAverage._exist == false) {
+        if (!accAverage._exist) {
             accAverage.average = stakingContract.getSnapshotAverage(account_, snapshotMin_, snapshotMax_);
         }
         return accAverage;
@@ -890,7 +890,7 @@ contract StakeRewards is DepositWithdraw {
      */
     function _prepareRewardVestingPeriods(address account_, uint rewardId_) internal {
         // Check prepared before for gas cost
-        if (_isVestingPeriodsPrepared(account_, rewardId_) == true) {
+        if (_isVestingPeriodsPrepared(account_, rewardId_)) {
             return;
         }
 
@@ -900,12 +900,12 @@ contract StakeRewards is DepositWithdraw {
         (AccBaseReward memory baseReward, CacheAverage memory accAverage,) = getAccountRewardDetails(account_, rewardId_, config.snapshotMin, config.snapshotMax);
 
         // Write account average in cache if not exist
-        if (accAverage._exist == false) {
+        if (!accAverage._exist) {
             _setAverageCalculation(account_, config.snapshotMin, config.snapshotMax, accAverage.average);
         }
 
         // Write account base reward in state variable if not exist
-        if (baseReward._exist == false) {
+        if (!baseReward._exist) {
             baseReward._exist = true;
             _accountBaseReward[account_][rewardId_] = baseReward;
         }

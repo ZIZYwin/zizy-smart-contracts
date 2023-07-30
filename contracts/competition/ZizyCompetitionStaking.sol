@@ -166,7 +166,7 @@ contract ZizyCompetitionStaking is OwnableUpgradeable {
      */
     modifier whenPeriodExist() {
         uint256 periodId = currentPeriod;
-        require(periodId > 0 && periods[periodId]._exist == true, "There is no period exist");
+        require(periodId > 0 && periods[periodId]._exist, "There is no period exist");
         _;
     }
 
@@ -176,7 +176,7 @@ contract ZizyCompetitionStaking is OwnableUpgradeable {
     modifier whenCurrentPeriodInBuyStage() {
         uint ts = block.timestamp;
         (uint start, uint end, uint ticketBuyStart, uint ticketBuyEnd, , , bool exist) = _getPeriod(currentPeriod);
-        require(exist == true, "Period does not exist");
+        require(exist, "Period does not exist");
         require(_isInRange(ts, start, end) && _isInRange(ts, ticketBuyStart, ticketBuyEnd), "Currently not in the range that can be calculated");
         _;
     }
@@ -289,7 +289,7 @@ contract ZizyCompetitionStaking is OwnableUpgradeable {
      */
     function getPeriodSnapshotRange(uint256 periodId) external view returns (uint, uint) {
         Period memory period = periods[periodId];
-        require(period._exist == true, "Period does not exist");
+        require(period._exist, "Period does not exist");
 
         uint min = period.firstSnapshotId;
         uint max = (period.lastSnapshotId == 0 ? snapshotId : period.lastSnapshotId);
@@ -350,7 +350,7 @@ contract ZizyCompetitionStaking is OwnableUpgradeable {
         uint256 periodId = currentPeriod;
         (, , , , , , bool exist) = _getPeriod(periodId);
 
-        require(exist == true, "No active period exist");
+        require(exist, "No active period exist");
 
         _snapshot();
     }
@@ -370,7 +370,7 @@ contract ZizyCompetitionStaking is OwnableUpgradeable {
         uint256 currentSnapshot = snapshotId;
         currentPeriod = period;
 
-        if (periods[prevPeriod]._exist == true) {
+        if (periods[prevPeriod]._exist) {
             // Set last snapshot of previous period
             periods[prevPeriod].lastSnapshotId = currentSnapshot;
             periods[prevPeriod].isOver = true;
@@ -440,7 +440,7 @@ contract ZizyCompetitionStaking is OwnableUpgradeable {
 
         // Update current snapshot balance
         currentSnapshot.balance = currentBalance;
-        if (currentSnapshot._exist == false) {
+        if (!currentSnapshot._exist) {
             currentSnapshot.prevSnapshotBalance = previousBalance;
             currentSnapshot._exist = true;
         }
@@ -448,7 +448,7 @@ contract ZizyCompetitionStaking is OwnableUpgradeable {
         // Update account details
         details.lastSnapshotId = currentSnapshotId;
         details.lastActivityBalance = currentBalance;
-        if (details._exist == false) {
+        if (!details._exist) {
             details._exist = true;
         }
     }
@@ -684,9 +684,9 @@ contract ZizyCompetitionStaking is OwnableUpgradeable {
         for (uint i = min; i <= max; ++i) {
             Snapshot memory shot = snapshots[account][i];
 
-            if (shot._exist == false) {
+            if (!shot._exist) {
                 // Snapshot data does not exist
-                if (shift == false) {
+                if (!shift) {
                     unknownCounter++;
                 } else {
                     stakeSum += (unknownCounter + 1) * lastBalance;
@@ -703,7 +703,7 @@ contract ZizyCompetitionStaking is OwnableUpgradeable {
             // Scan any stake activity from max to currentSnapshotId
             for (uint i = (max + 1); i <= currentSnapshot; ++i) {
                 Snapshot memory shot = snapshots[account][i];
-                if (shot._exist == true) {
+                if (shot._exist) {
                     stakeSum += (unknownCounter * shot.prevSnapshotBalance);
                     unknownCounter = 0;
                     break;
@@ -741,7 +741,7 @@ contract ZizyCompetitionStaking is OwnableUpgradeable {
         PeriodStakeAverage memory avg = averages[account][periodId];
 
         // Return if current period average isn't calculated
-        if (avg._calculated == false) {
+        if (!avg._calculated) {
             return (0, false);
         }
 
@@ -776,7 +776,7 @@ contract ZizyCompetitionStaking is OwnableUpgradeable {
         uint256 periodId = currentPeriod;
         (, bool calculated) = _getPeriodStakeAverage(_msgSender(), periodId);
 
-        require(calculated == false, "Already calculated");
+        require(!calculated, "Already calculated");
 
         uint256 total = 0;
 
@@ -794,7 +794,7 @@ contract ZizyCompetitionStaking is OwnableUpgradeable {
             // Update snapshot balance
             if (i == lastSnapshot) {
                 shotBalance = balances[_msgSender()];
-            } else if (shot._exist == true) {
+            } else if (shot._exist) {
                 shotBalance = shot.balance;
                 nextIB = shot.prevSnapshotBalance;
                 shift = true;

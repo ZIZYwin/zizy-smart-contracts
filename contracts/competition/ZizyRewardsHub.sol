@@ -350,13 +350,13 @@ contract ZizyRewardsHub is OwnableUpgradeable, ReentrancyGuardUpgradeable, ERC72
      */
     function _setCompetitionReward(uint256 periodId, uint256 competitionId, address ticket_, uint256 ticketId_, uint chainId_, RewardType rewardType, address rewardAddress_, uint amount, uint tokenId) internal {
         Reward memory reward = _competitionRewards[ticket_][ticketId_];
-        require(reward.isClaimed == false, "Cant update claimed reward !");
+        require(!reward.isClaimed, "Cant update claimed reward !");
 
         if (rewardType == RewardType.Token || rewardType == RewardType.NFT) {
             require(rewardAddress_ != address(0), "Token or NFT reward must has contract address");
         }
 
-        if (reward._exist == true) {
+        if (reward._exist) {
             emit CompRewardUpdated(ticket_, ticketId_);
         } else {
             emit CompRewardDefined(ticket_, ticketId_);
@@ -551,8 +551,8 @@ contract ZizyRewardsHub is OwnableUpgradeable, ReentrancyGuardUpgradeable, ERC72
      */
     function claimCompetitionReward(address ticketContract_, uint ticketId_) external nonReentrant {
         Reward memory rew = _competitionRewards[ticketContract_][ticketId_];
-        require(rew._exist == true, "Reward does not exist");
-        require(rew.isClaimed == false, "Reward already claimed");
+        require(rew._exist, "Reward does not exist");
+        require(!rew.isClaimed, "Reward already claimed");
 
         IERC721Upgradeable ticket = IERC721Upgradeable(ticketContract_);
         require(ticket.ownerOf(ticketId_) == _msgSender(), "You are not owner of this ticket");
@@ -623,7 +623,7 @@ contract ZizyRewardsHub is OwnableUpgradeable, ReentrancyGuardUpgradeable, ERC72
         uint unclaimedCounter = 0;
         for (uint i = 0; i < rewardCount; ++i) {
             Reward memory rew = _airdropRewards[receiver_][airdropId_][i];
-            if (rew.isClaimed == false && rew._exist == true) {
+            if (!rew.isClaimed && rew._exist) {
                 unclaimedCounter++;
             }
         }
@@ -644,7 +644,7 @@ contract ZizyRewardsHub is OwnableUpgradeable, ReentrancyGuardUpgradeable, ERC72
 
         for (uint i = 0; i < rewardCount; ++i) {
             Reward memory rew = _airdropRewards[_msgSender()][airdropId_][i];
-            if (rew.isClaimed == false && rew._exist == true) {
+            if (!rew.isClaimed && rew._exist) {
                 _claimAirdropReward(_msgSender(), airdropId_, i);
             }
         }
@@ -665,8 +665,8 @@ contract ZizyRewardsHub is OwnableUpgradeable, ReentrancyGuardUpgradeable, ERC72
         require(rewardIndex < rewardCount, "Reward index out of boundaries");
 
         Reward memory rew = _airdropRewards[receiver_][airdropId_][rewardIndex];
-        require(rew._exist == true, "Reward does not exist");
-        require(rew.isClaimed == false, "Reward already claimed");
+        require(rew._exist, "Reward does not exist");
+        require(!rew.isClaimed, "Reward already claimed");
 
         _airdropRewards[receiver_][airdropId_][rewardIndex].isClaimed = true;
 
@@ -738,8 +738,8 @@ contract ZizyRewardsHub is OwnableUpgradeable, ReentrancyGuardUpgradeable, ERC72
 
         Reward memory rew = _airdropRewards[receiver_][airdropId_][rewardIndex];
 
-        require(rew._exist == true, "Reward does not exist");
-        require(rew.isClaimed == false, "Can not remove claimed reward");
+        require(rew._exist, "Reward does not exist");
+        require(!rew.isClaimed, "Can not remove claimed reward");
 
         Reward[] storage receiverRewards = _airdropRewards[receiver_][airdropId_];
         receiverRewards[rewardIndex] = receiverRewards[rewardCount - 1];

@@ -301,8 +301,8 @@ contract ZizyPoPaFactory is OwnableUpgradeable, ReentrancyGuardUpgradeable {
     function mintClaimedPopa(address claimer_, uint256 periodId_, uint256 tokenId_) external onlyMinter {
         address popaContract = _periodPopas[periodId_];
         require(popaContract != address(0), "Unknown period id");
-        require(_popaClaimed[claimer_][periodId_] == true, "Not claimed by claimer");
-        require(_popaClaimMinted[claimer_][periodId_] == false, "Already minted");
+        require(_popaClaimed[claimer_][periodId_], "Not claimed by claimer");
+        require(!_popaClaimMinted[claimer_][periodId_], "Already minted");
 
         // Set minted state
         _popaClaimMinted[claimer_][periodId_] = true;
@@ -340,12 +340,11 @@ contract ZizyPoPaFactory is OwnableUpgradeable, ReentrancyGuardUpgradeable {
         if (popaContract == address(0)) {
             revert("Unknown period id");
         }
-        if (_popaClaimed[_msgSender()][periodId_] == true) {
+        if (_popaClaimed[_msgSender()][periodId_]) {
             revert("You already claimed this popa nft");
         }
 
-        bool canClaim = _claimableCheck(_msgSender(), periodId_);
-        if (canClaim == false) {
+        if (!_claimableCheck(_msgSender(), periodId_)) {
             revert("Claim conditions not met");
         }
 
@@ -354,7 +353,7 @@ contract ZizyPoPaFactory is OwnableUpgradeable, ReentrancyGuardUpgradeable {
 
         // Transfer claim payment to minter
         (bool success,) = popaMinter.call{value : msg.value}("");
-        if (success == false) {
+        if (!success) {
             revert("Transfer failed");
         }
 
@@ -401,7 +400,7 @@ contract ZizyPoPaFactory is OwnableUpgradeable, ReentrancyGuardUpgradeable {
      */
     function _claimableCheck(address account, uint256 periodId) internal view returns (bool) {
         // User already claimed PoPa
-        if (_popaClaimed[account][periodId] == true) {
+        if (_popaClaimed[account][periodId]) {
             return false;
         }
 
@@ -409,7 +408,7 @@ contract ZizyPoPaFactory is OwnableUpgradeable, ReentrancyGuardUpgradeable {
         ICompetitionFactory factory = ICompetitionFactory(competitionFactory);
 
         // Check period participation
-        if (factory.hasParticipation(account, periodId) == false) {
+        if (!factory.hasParticipation(account, periodId)) {
             return false;
         }
 
@@ -423,14 +422,14 @@ contract ZizyPoPaFactory is OwnableUpgradeable, ReentrancyGuardUpgradeable {
             uint compId = factory.getCompetitionIdWithIndex(periodId, i);
 
             // Continue if competition ticket buy settings isn't defined
-            if (factory.isCompetitionSettingsDefined(periodId, compId) == false) {
+            if (!factory.isCompetitionSettingsDefined(periodId, compId)) {
                 continue;
             }
 
             (uint32 bought, uint32 max, bool hasAlloc) = factory.getAllocation(account, periodId, compId);
 
             // User hasn't participated all competitions
-            if (hasAlloc == false || bought == 0) {
+            if (!hasAlloc || bought == 0) {
                 return false;
             }
 
