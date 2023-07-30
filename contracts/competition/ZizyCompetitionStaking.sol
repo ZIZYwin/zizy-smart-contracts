@@ -4,7 +4,6 @@ pragma solidity ^0.8.9;
 
 import "@openzeppelin/contracts-upgradeable/token/ERC20/utils/SafeERC20Upgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import "../utils/IERC20.sol";
 import "./ICompetitionFactory.sol";
 
 // @dev We building sth big. Stay tuned!
