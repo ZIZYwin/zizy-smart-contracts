@@ -10,7 +10,7 @@ import "./IZizyCompetitionStaking.sol";
  * @notice This contract manages the distribution of rewards to stakers based on vesting periods. It inherits from the DepositWithdraw contract
  */
 contract StakeRewards is DepositWithdraw {
-    uint constant MAX_UINT = (2 ** 256) - 1;
+    uint internal constant MAX_UINT = (2 ** 256) - 1;
 
     /**
      * @notice This event is emitted when a vesting reward is created for an account.
