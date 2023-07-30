@@ -467,6 +467,7 @@ contract ZizyCompetitionStaking is OwnableUpgradeable {
      * Account details are updated, and a Stake event is emitted.
      */
     function stake(uint256 amount_) external whenPeriodExist whenFeeAddressExist {
+        require(amount_ > 0, "Incorrect stake amount");
         IERC20Upgradeable token = stakeToken;
         uint256 currentBalance = balanceOf(_msgSender());
         uint256 currentSnapshot = snapshotId;
