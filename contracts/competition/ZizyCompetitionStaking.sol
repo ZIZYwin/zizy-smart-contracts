@@ -469,8 +469,6 @@ contract ZizyCompetitionStaking is OwnableUpgradeable {
         uint256 currentBalance = balanceOf(_msgSender());
         uint256 currentSnapshot = snapshotId;
         uint256 periodId = currentPeriod;
-        require(amount_ <= token.balanceOf(_msgSender()), "Insufficient balance");
-        require(amount_ <= token.allowance(_msgSender(), address(this)), "Insufficient allowance amount for stake");
 
         // Transfer tokens from callee to contract
         token.safeTransferFrom(_msgSender(), address(this), amount_);

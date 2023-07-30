@@ -580,8 +580,6 @@ contract CompetitionFactory is OwnableUpgradeable, ReentrancyGuardUpgradeable {
 
         uint256 paymentAmount = comp.ticketPrice * ticketCount;
         IERC20Upgradeable token_ = IERC20Upgradeable(comp.sellToken);
-        uint256 allowance_ = token_.allowance(_msgSender(), address(this));
-        require(allowance_ >= paymentAmount, "Insufficient allowance");
 
         token_.safeTransferFrom(_msgSender(), paymentReceiver, paymentAmount);
 

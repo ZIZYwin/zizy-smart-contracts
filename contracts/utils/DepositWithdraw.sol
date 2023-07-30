@@ -52,7 +52,6 @@ contract DepositWithdraw is OwnableUpgradeable, ReentrancyGuardUpgradeable, ERC7
      */
     function _sendToken(address to_, address token_, uint amount) internal {
         IERC20Upgradeable token = IERC20Upgradeable(token_);
-        require(token.balanceOf(address(this)) >= amount, "Insufficient token balance");
         token.safeTransfer(to_, amount);
     }
 
@@ -106,7 +105,6 @@ contract DepositWithdraw is OwnableUpgradeable, ReentrancyGuardUpgradeable, ERC7
      */
     function depositToken(address token_, uint amount) external onlyOwner {
         IERC20Upgradeable token = IERC20Upgradeable(token_);
-        require(token.allowance(_msgSender(), address(this)) >= amount, "Insufficient allowance");
         token.safeTransferFrom(_msgSender(), address(this), amount);
     }
 
