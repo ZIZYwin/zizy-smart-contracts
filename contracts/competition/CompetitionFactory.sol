@@ -603,21 +603,6 @@ contract CompetitionFactory is OwnableUpgradeable, ReentrancyGuardUpgradeable {
     }
 
     /**
-     * @notice Checks if the allocation for an account and competition exceeds the maximum.
-     * @param account_ The account address.
-     * @param periodId_ The ID of the period.
-     * @param competitionId_ The ID of the competition.
-     * @param mintCount_ The number of tickets to mint.
-     * @return A boolean indicating if the allocation exceeds the maximum.
-     */
-    function _isAllocationExceeds(address account_, uint256 periodId_, uint256 competitionId_, uint mintCount_) internal view returns (bool) {
-        // Max allocation limit check
-        Allocation memory alloc = _getAllocation(account_, periodId_, competitionId_);
-
-        return (mintCount_ > (alloc.max - alloc.bought));
-    }
-
-    /**
      * @notice Mints and sends a ticket to an address.
      * @param periodId The ID of the period.
      * @param competitionId The ID of the competition.
