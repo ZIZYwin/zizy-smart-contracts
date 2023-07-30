@@ -232,7 +232,7 @@ contract ZizyCompetitionStaking is OwnableUpgradeable {
      * Emits a CoolingOffSettingsUpdated event with the new settings.
      */
     function updateCoolingOffSettings(uint8 percentage_, uint8 coolingDay_, uint8 coolestDay_) external onlyOwner {
-        require(percentage_ <= 100, "Percentage should be in 0-100 range");
+        require(percentage_ <= 15, "Percentage should be in 0-20 range");
         coolingPercentage = percentage_;
         coolingDelay = (uint256(coolingDay_) * 24 * 60 * 60);
         coolestDelay = (uint256(coolestDay_) * 24 * 60 * 60);
@@ -402,7 +402,7 @@ contract ZizyCompetitionStaking is OwnableUpgradeable {
      * It updates the stake fee percentage to the specified value and emits the StakeFeePercentageUpdated event.
      */
     function setStakeFeePercentage(uint8 stakeFeePercentage_) external onlyOwner {
-        require(stakeFeePercentage_ < 100, "Fee percentage is not within limits");
+        require(stakeFeePercentage_ <= 5, "Fee percentage is not within limits");
         stakeFeePercentage = stakeFeePercentage_;
         emit StakeFeePercentageUpdated(stakeFeePercentage_);
     }
