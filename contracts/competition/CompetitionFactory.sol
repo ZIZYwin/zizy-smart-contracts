@@ -179,6 +179,8 @@ contract CompetitionFactory is OwnableUpgradeable, ReentrancyGuardUpgradeable {
      * @param minter_ The address authorized to mint tickets.
      */
     function initialize(address receiver_, address minter_) external initializer {
+        require(receiver_ != address(0) && minter_ != address(0), "Params cant be zero address");
+
         __Ownable_init();
         __ReentrancyGuard_init();
 

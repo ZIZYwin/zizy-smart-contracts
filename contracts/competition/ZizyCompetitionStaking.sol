@@ -194,7 +194,7 @@ contract ZizyCompetitionStaking is OwnableUpgradeable {
      * It sets the stake token, fee receiver, and initializes other state variables.
      */
     function initialize(address stakeToken_, address feeReceiver_) external initializer {
-        require(stakeToken_ != address(0), "Contract address can not be zero");
+        require(stakeToken_ != address(0) && feeReceiver_ != address(0), "Params cant be zero address");
 
         __Ownable_init();
 
