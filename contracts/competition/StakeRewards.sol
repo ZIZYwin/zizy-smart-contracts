@@ -70,12 +70,6 @@ contract StakeRewards is DepositWithdraw {
      */
     event RewardConfigUpdated(uint rewardId, bool vestingEnabled, uint snapshotMin, uint snapshotMax, uint vestingDayInterval);
 
-    /**
-     * @notice This event is emitted when a reward is cleared.
-     * @param rewardId The ID of the reward.
-     */
-    event RewardClear(uint rewardId);
-
     /// @notice Enum for reward types
     enum RewardType {
         Token,
