@@ -116,7 +116,7 @@ contract ZizyPoPaFactory is OwnableUpgradeable, ReentrancyGuardUpgradeable {
      * It sets the popaMinter address to the specified minter_ address.
      * @dev Throws an error if the minter_ address is zero.
      */
-    function setPopaMinter(address minter_) public onlyOwner {
+    function setPopaMinter(address minter_) external onlyOwner {
         require(minter_ != address(0), "Minter account can not be zero");
         popaMinter = minter_;
     }

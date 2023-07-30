@@ -86,7 +86,7 @@ contract ZizyPoPa is ERC721, ERC721Enumerable, ERC721Pausable, Ownable {
      * @dev This function can only be called by the contract owner.
      * It sets the base URI used for computing the tokenURI of each token.
      */
-    function setBaseURI(string memory baseUri_) public virtual onlyOwner {
+    function setBaseURI(string memory baseUri_) external virtual onlyOwner {
         baseUri = baseUri_;
     }
 
@@ -106,7 +106,7 @@ contract ZizyPoPa is ERC721, ERC721Enumerable, ERC721Pausable, Ownable {
      * It mints a new PoPa token with the specified ID and assigns it to the specified address.
      * Emits a `PoPaMinted` event.
      */
-    function mint(address to_, uint256 tokenId_) public virtual onlyMinter {
+    function mint(address to_, uint256 tokenId_) external virtual onlyMinter {
         _mint(to_, tokenId_);
         emit PoPaMinted(to_, tokenId_);
     }
@@ -117,7 +117,7 @@ contract ZizyPoPa is ERC721, ERC721Enumerable, ERC721Pausable, Ownable {
      * @dev This function can only be called by the contract owner.
      * It pauses all token transfers.
      */
-    function pause() public onlyOwner whenNotPaused {
+    function pause() external onlyOwner whenNotPaused {
         _pause();
     }
 
@@ -127,7 +127,7 @@ contract ZizyPoPa is ERC721, ERC721Enumerable, ERC721Pausable, Ownable {
      * @dev This function can only be called by the contract owner.
      * It unpauses all token transfers.
      */
-    function unpause() public onlyOwner whenPaused {
+    function unpause() external onlyOwner whenPaused {
         _unpause();
     }
 

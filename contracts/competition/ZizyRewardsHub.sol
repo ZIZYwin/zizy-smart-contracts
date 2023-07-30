@@ -156,7 +156,7 @@ contract ZizyRewardsHub is OwnableUpgradeable, ReentrancyGuardUpgradeable, ERC72
     /**
      * @notice Allows deposit native coin on the contract. Native coins are used to distibute rewards
      */
-    function deposit() public payable onlyOwner {
+    function deposit() external payable onlyOwner {
     }
 
     /**

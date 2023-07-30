@@ -215,7 +215,7 @@ contract ZizyCompetitionStaking is OwnableUpgradeable {
      *
      * @dev This function returns the ID of the current snapshot.
      */
-    function getSnapshotId() public view returns (uint) {
+    function getSnapshotId() external view returns (uint) {
         return snapshotId;
     }
 
@@ -659,7 +659,7 @@ contract ZizyCompetitionStaking is OwnableUpgradeable {
      * any missing snapshot data. If there are missing snapshots, it scans for any stake activity beyond the max snapshot
      * to fill in the missing data. If no stake activity is found, the average is calculated based on the current balance.
      */
-    function getSnapshotAverage(address account, uint256 min, uint256 max) public view returns (uint) {
+    function getSnapshotAverage(address account, uint256 min, uint256 max) external view returns (uint) {
         uint currentSnapshot = snapshotId;
 
         require(min <= max, "Max should be equal or higher than max");
@@ -769,7 +769,7 @@ contract ZizyCompetitionStaking is OwnableUpgradeable {
      * It updates the balances and existence flags of the snapshots, and calculates the total stake amount.
      * Finally, it calculates the average stake amount and stores it in the averages mapping for the caller's account and period.
      */
-    function calculatePeriodStakeAverage() public whenPeriodExist whenCurrentPeriodInBuyStage {
+    function calculatePeriodStakeAverage() external whenPeriodExist whenCurrentPeriodInBuyStage {
         uint256 periodId = currentPeriod;
         (, bool calculated) = _getPeriodStakeAverage(_msgSender(), periodId);
 

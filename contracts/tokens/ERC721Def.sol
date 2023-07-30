@@ -25,7 +25,7 @@ contract ERC721Def is ERC721, ERC721Enumerable, Ownable {
     /**
      * @dev Set base uri
      */
-    function setBaseURI(string memory baseUri_) public virtual onlyOwner {
+    function setBaseURI(string memory baseUri_) external virtual onlyOwner {
         baseUri = baseUri_;
     }
 
@@ -41,14 +41,14 @@ contract ERC721Def is ERC721, ERC721Enumerable, Ownable {
     /**
      * @dev Mint NFT
      */
-    function mint(address to_, uint256 ticketId_) public virtual onlyOwner {
+    function mint(address to_, uint256 ticketId_) external virtual onlyOwner {
         _mint(to_, ticketId_);
     }
 
     /**
      * @dev Batch mint NFT
      */
-    function mintBatch(address to_, uint256 ticketMin_, uint256 ticketMax_) public onlyOwner {
+    function mintBatch(address to_, uint256 ticketMin_, uint256 ticketMax_) external onlyOwner {
         for (uint i = ticketMin_; i <= ticketMax_; ++i) {
             _mint(to_, i);
         }

@@ -278,7 +278,7 @@ contract StakeRewards is DepositWithdraw {
      *
      * @dev This function returns the index of a booster by its ID. It reverts if the booster does not exist.
      */
-    function getBoosterIndex(uint16 boosterId_) public view returns (uint) {
+    function getBoosterIndex(uint16 boosterId_) external view returns (uint) {
         require(_boosters[boosterId_]._exist, "Booster is not exist");
         uint boosterCount = getBoosterCount();
         uint16[] memory ids = _boosterIds;
@@ -312,7 +312,7 @@ contract StakeRewards is DepositWithdraw {
      * @dev This function sets or updates a booster with the given parameters. It validates the inputs based on the booster type.
      *      If the booster ID doesn't exist, it adds the booster ID to the list of booster IDs.
      */
-    function setBooster(uint16 boosterId_, BoosterType type_, address contractAddress_, uint amount_, uint boostPercentage_) public onlyRewardDefiner {
+    function setBooster(uint16 boosterId_, BoosterType type_, address contractAddress_, uint amount_, uint boostPercentage_) external onlyRewardDefiner {
         // Validate
         if (type_ == BoosterType.ERC20Balance || type_ == BoosterType.StakingBalance) {
             require(amount_ > 0, "Amount should be higher than zero");
@@ -342,7 +342,7 @@ contract StakeRewards is DepositWithdraw {
      * @dev This function removes the booster with the given ID. It checks if the booster exists and updates its values to default.
      *      It also removes the booster ID from the list of booster IDs.
      */
-    function removeBooster(uint16 boosterId_) public onlyRewardDefiner {
+    function removeBooster(uint16 boosterId_) external onlyRewardDefiner {
         Booster memory booster = getBooster(boosterId_);
         require(booster._exist, "Booster does not exist");
 
@@ -418,7 +418,7 @@ contract StakeRewards is DepositWithdraw {
      * @dev This function retrieves the average calculation for the given account and snapshot range from the cache.
      *      It returns the average calculation stored in the cache as a CacheAverage struct.
      */
-    function getSnapshotsAverageCalculation(address account_, uint min_, uint max_) public view returns (CacheAverage memory) {
+    function getSnapshotsAverageCalculation(address account_, uint min_, uint max_) external view returns (CacheAverage memory) {
         return _getAccountSnapshotsAverage(account_, min_, max_);
     }
 
@@ -514,7 +514,7 @@ contract StakeRewards is DepositWithdraw {
      * The snapshot ranges must be within the valid range of snapshot IDs.
      * Once the configuration is updated, the 'RewardConfigUpdated' event is emitted.
      */
-    function setRewardConfig(uint rewardId_, bool vestingEnabled_, uint vestingStartDate_, uint vestingDayInterval_, uint vestingPeriodCount_, uint snapshotMin_, uint snapshotMax_) public onlyRewardDefiner stakingContractIsSet {
+    function setRewardConfig(uint rewardId_, bool vestingEnabled_, uint vestingStartDate_, uint vestingDayInterval_, uint vestingPeriodCount_, uint snapshotMin_, uint snapshotMax_) external onlyRewardDefiner stakingContractIsSet {
         RewardConfig memory config = rewardConfig[rewardId_];
         require(!_isRewardClaimed[rewardId_], "This rewardId has claimed reward. Cant update");
 
@@ -565,7 +565,7 @@ contract StakeRewards is DepositWithdraw {
      * @dev This function retrieves the reward tier at the specified index from the reward tiers array
      * associated with the given reward ID.
      */
-    function getRewardTier(uint rewardId_, uint index_) public view returns (RewardTier memory) {
+    function getRewardTier(uint rewardId_, uint index_) external view returns (RewardTier memory) {
         uint tierLength = getRewardTierCount(rewardId_);
         require(index_ < tierLength, "Tier index out of boundaries");
 
@@ -583,7 +583,7 @@ contract StakeRewards is DepositWithdraw {
      * The tier length must be greater than 1, and each tier's stake minimum must be greater than the maximum
      * of the previous tier to avoid range collisions.
      */
-    function setRewardTiers(uint rewardId_, RewardTier[] calldata tiers_) public onlyRewardDefiner {
+    function setRewardTiers(uint rewardId_, RewardTier[] calldata tiers_) external onlyRewardDefiner {
         require(!_isRewardClaimed[rewardId_], "This rewardId has claimed reward. Cant update");
 
         uint tierLength = tiers_.length;
@@ -654,7 +654,7 @@ contract StakeRewards is DepositWithdraw {
      * @dev This function sets a native reward with the provided details by calling the internal
      * `_setReward` function with the reward type set to `RewardType.Native` and the contract address set to zero address.
      */
-    function setNativeReward(uint rewardId_, uint chainId_, uint amount_) public onlyRewardDefiner {
+    function setNativeReward(uint rewardId_, uint chainId_, uint amount_) external onlyRewardDefiner {
         _setReward(rewardId_, chainId_, RewardType.Native, address(0), amount_, 0);
     }
 
@@ -669,7 +669,7 @@ contract StakeRewards is DepositWithdraw {
      * @dev This function sets a token reward with the provided details by calling the internal
      * `_setReward` function with the reward type set to `RewardType.Token`.
      */
-    function setTokenReward(uint rewardId_, uint chainId_, address contractAddress_, uint amount_) public onlyRewardDefiner {
+    function setTokenReward(uint rewardId_, uint chainId_, address contractAddress_, uint amount_) external onlyRewardDefiner {
         _setReward(rewardId_, chainId_, RewardType.Token, contractAddress_, amount_, 0);
     }
 
@@ -685,7 +685,7 @@ contract StakeRewards is DepositWithdraw {
      * `_setReward` function with the reward type set to `RewardType.ZizyStakingPercentage`.
      * The chain ID is obtained using the `chainId()` function.
      */
-    function setZizyStakePercentageReward(uint rewardId_, address contractAddress_, uint amount_, uint percentage_) public onlyRewardDefiner {
+    function setZizyStakePercentageReward(uint rewardId_, address contractAddress_, uint amount_, uint percentage_) external onlyRewardDefiner {
         _setReward(rewardId_, chainId(), RewardType.ZizyStakingPercentage, contractAddress_, amount_, percentage_);
     }
 
@@ -707,7 +707,7 @@ contract StakeRewards is DepositWithdraw {
      * @param index_ The index of the account reward.
      * @return The account reward details.
      */
-    function getAccountReward(address account_, uint rewardId_, uint index_) public view returns (AccountReward memory) {
+    function getAccountReward(address account_, uint rewardId_, uint index_) external view returns (AccountReward memory) {
         return _accountRewards[rewardId_][account_][index_];
     }
 

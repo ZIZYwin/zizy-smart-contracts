@@ -22,7 +22,7 @@ contract DepositWithdraw is OwnableUpgradeable, ReentrancyGuardUpgradeable, ERC7
     /**
      * @notice Allows deposit native coin on the contract
      */
-    function deposit() public payable onlyOwner {
+    function deposit() external payable onlyOwner {
     }
 
     /**
