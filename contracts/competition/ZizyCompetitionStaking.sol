@@ -577,7 +577,7 @@ contract ZizyCompetitionStaking is OwnableUpgradeable {
 
         IERC20Upgradeable token = stakeToken;
 
-        balances[_msgSender()] = balances[_msgSender()].sub(amount_);
+        balances[_msgSender()] = balances[_msgSender()] - amount_;
         (uint fee, uint free) = calculateUnStakeAmounts(amount_);
 
         // Update account details
