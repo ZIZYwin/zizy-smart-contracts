@@ -40,4 +40,9 @@ interface IZizyCompetitionTicket is IERC721, IERC721Enumerable {
      * @notice Unpauses the minting and transferring of ticket tokens.
      */
     function unpause() external;
+
+    /**
+     * @dev Returns true if the contract is paused, and false otherwise.
+     */
+    function paused() external view returns (bool);
 }

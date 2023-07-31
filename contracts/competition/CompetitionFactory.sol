@@ -607,12 +607,24 @@ contract CompetitionFactory is OwnableUpgradeable, ReentrancyGuardUpgradeable {
     function mintTicket(uint256 periodId, uint256 competitionId, address to_, uint256 ticketId_) external onlyMinter {
         Competition memory comp = _periodCompetitions[periodId][competitionId];
         require(comp._exist, "Competition does not exist");
+        bool ticketPaused = comp.ticket.paused();
 
         Allocation memory alloc = _getAllocation(to_, periodId, competitionId);
         uint accountTicketBalance = comp.ticket.balanceOf(to_);
         require((accountTicketBalance + 1) <= alloc.bought, "Maximum ticket allocation bought");
 
+        // Un-pause if ticket is paused
+        if (ticketPaused) {
+            comp.ticket.unpause();
+        }
+
         comp.ticket.mint(to_, ticketId_);
+
+        // Pause if ticket is paused
+        if (ticketPaused) {
+            comp.ticket.pause();
+        }
+
         emit TicketSend(to_, periodId, competitionId, ticketId_);
     }
 
@@ -629,15 +641,26 @@ contract CompetitionFactory is OwnableUpgradeable, ReentrancyGuardUpgradeable {
 
         Competition memory comp = _periodCompetitions[periodId][competitionId];
         require(comp._exist, "Competition does not exist");
+        bool ticketPaused = comp.ticket.paused();
 
         Allocation memory alloc = _getAllocation(to_, periodId, competitionId);
         uint accountTicketBalance = comp.ticket.balanceOf(to_);
         require((accountTicketBalance + length) <= alloc.bought, "Maximum ticket allocation bought");
 
+        // Un-pause if ticket is paused
+        if (ticketPaused) {
+            comp.ticket.unpause();
+        }
+
         for (uint i = 0; i < length; ++i) {
             uint256 mintTicketId = ticketIds[i];
             comp.ticket.mint(to_, mintTicketId);
             emit TicketSend(to_, periodId, competitionId, mintTicketId);
+        }
+
+        // Pause if ticket is paused
+        if (ticketPaused) {
+            comp.ticket.pause();
         }
     }
 

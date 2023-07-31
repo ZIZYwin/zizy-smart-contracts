@@ -4,8 +4,8 @@ pragma solidity ^0.8.17;
 
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
+import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Pausable.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
-import "../utils/ERC721Pausable.sol";
 
 /**
  * @title ZizyCompetitionTicket
@@ -66,18 +66,8 @@ contract ZizyCompetitionTicket is ERC721, ERC721Enumerable, ERC721Pausable, Owna
      * If the contract is paused on minting, it will temporarily unpause the contract during the minting process.
      */
     function mint(address to_, uint256 ticketId_) external virtual onlyOwner {
-        bool isPausedOnMint = isPaused();
-
-        if (isPausedOnMint) {
-            _unpauseSilence();
-        }
-
         _mint(to_, ticketId_);
         emit TicketMinted(to_, ticketId_);
-
-        if (isPausedOnMint) {
-            _pauseSilence();
-        }
     }
 
     /**
