@@ -162,6 +162,26 @@ contract ZizyCompetitionStaking is OwnableUpgradeable {
     event UnstakeTimeLock(address account, uint lockTime);
 
     /**
+     * @dev Emitted when the competition factory address updated
+     * @param factoryAddress The address of competition factory
+     */
+    event CompFactoryUpdated(address factoryAddress);
+
+    /**
+     * @dev Emitted when the fee receiver address updated
+     * @param receiver Fee receiver address
+     */
+    event FeeReceiverUpdated(address receiver);
+
+    /**
+     * @dev Emitted when any account period stake average calculated
+     * @param account Account
+     * @param periodId Period ID
+     * @param average Average of period snapshots
+     */
+    event PeriodStakeAverageCalculated(address account, uint periodId, uint average);
+
+    /**
      * @dev Modifier that allows the function to be called only from the competition factory contract
      */
     modifier onlyCallFromFactory() {
@@ -451,6 +471,7 @@ contract ZizyCompetitionStaking is OwnableUpgradeable {
     function setCompetitionFactory(address competitionFactory_) external onlyOwner {
         require(address(competitionFactory_) != address(0), "Competition factory address can not be zero");
         competitionFactory = competitionFactory_;
+        emit CompFactoryUpdated(competitionFactory_);
     }
 
     /**
@@ -478,6 +499,7 @@ contract ZizyCompetitionStaking is OwnableUpgradeable {
     function setFeeAddress(address feeAddress_) external onlyOwner {
         require(feeAddress_ != address(0), "Fee address can not be zero");
         feeAddress = feeAddress_;
+        emit FeeReceiverUpdated(feeAddress_);
     }
 
     /**
@@ -869,6 +891,8 @@ contract ZizyCompetitionStaking is OwnableUpgradeable {
             snapshots[_msgSender()][i] = shot;
         }
 
-        averages[_msgSender()][periodId] = PeriodStakeAverage((total / (lastSnapshot - firstSnapshot + 1)), true);
+        uint average = (total / (lastSnapshot - firstSnapshot + 1));
+        averages[_msgSender()][periodId] = PeriodStakeAverage(average, true);
+        emit PeriodStakeAverageCalculated(_msgSender(), periodId, average);
     }
 }

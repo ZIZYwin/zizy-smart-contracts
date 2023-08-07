@@ -85,6 +85,21 @@ contract ZizyRewardsHub is OwnableUpgradeable, ReentrancyGuardUpgradeable, ERC72
      */
     event CompRewardClaimedOnDiffChain(uint256 periodId, uint256 competitionId, RewardType rewardType, address rewardAddress, address receiver, uint chainId, uint amount, uint tokenId);
 
+    /**
+     * @notice Event emitted when a competition reward is claimed on a different chain.
+     * @param withdrawType The type of the reward (Token, NFT, Native).
+     * @param assetAddress The contract address of withdrawed asset (Token, NFT)
+     * @param amount Withdraw amount (Token, Native)
+     * @param tokenId ID of reward (NFT)
+     */
+    event RewardWithdraw(RewardType withdrawType, address assetAddress, uint amount, uint tokenId);
+
+    /**
+     * @notice Event emitted when reward definer updated
+     * @param account Reward definer address
+     */
+    event SetRewardDefiner(address account);
+
     /// @notice Enum for reward types
     enum RewardType {
         Token,
@@ -172,6 +187,7 @@ contract ZizyRewardsHub is OwnableUpgradeable, ReentrancyGuardUpgradeable, ERC72
         require(address(this).balance >= amount, "Insufficient native balance");
         (bool sent,) = to_.call{value : amount}("");
         require(sent, "Native coin transfer failed");
+        emit RewardWithdraw(RewardType.Native, address(0), amount, 0);
     }
 
     /**
@@ -199,20 +215,6 @@ contract ZizyRewardsHub is OwnableUpgradeable, ReentrancyGuardUpgradeable, ERC72
     }
 
     /**
-     * @notice Allows the contract owner to deposit reward tokens to the contract.
-     * @param token_ The address of the token to deposit.
-     * @param amount The amount of tokens to deposit.
-     *
-     * @dev Note that the function checks if the contract owner is calling the function. Only the contract owner is allowed to deposit tokens.
-     * The function requires that the contract has sufficient allowance from the caller to transfer the specified amount of tokens.
-     * After confirming the allowance, the function uses the `safeTransferFrom` function of the token contract to transfer the tokens to the contract.
-     */
-    function depositToken(address token_, uint amount) external onlyOwner {
-        IERC20Upgradeable token = IERC20Upgradeable(token_);
-        token.safeTransferFrom(_msgSender(), address(this), amount);
-    }
-
-    /**
      * @notice Internal function to send ERC20 tokens
      * @param to_ The address of the recipient of the ERC20 token transfer. The recipient must be a valid address.
      * @param token_ The address of the ERC20 token to send.
@@ -225,6 +227,7 @@ contract ZizyRewardsHub is OwnableUpgradeable, ReentrancyGuardUpgradeable, ERC72
     function _sendToken(address to_, address token_, uint amount) internal {
         IERC20Upgradeable token = IERC20Upgradeable(token_);
         token.safeTransfer(to_, amount);
+        emit RewardWithdraw(RewardType.Token, token_, amount, 0);
     }
 
     /**
@@ -253,19 +256,6 @@ contract ZizyRewardsHub is OwnableUpgradeable, ReentrancyGuardUpgradeable, ERC72
     }
 
     /**
-     * @notice This function allows the contract owner to deposit NFT rewards to the contract.
-     * @param token_ The address of the NFT contract.
-     * @param tokenId_ The ID of the NFT to deposit.
-     *
-     * @dev Note that the function checks if the contract owner is calling the function. Only the contract owner is allowed to deposit NFT rewards.
-     * After confirming the ownership, the function uses the `safeTransferFrom` function of the NFT contract to transfer the NFT to the contract.
-     */
-    function depositNFT(address token_, uint tokenId_) external onlyOwner {
-        IERC721Upgradeable nft = IERC721Upgradeable(token_);
-        nft.safeTransferFrom(_msgSender(), address(this), tokenId_);
-    }
-
-    /**
      * @notice Internal function to send NFTs
      * @param to_ The address to send the NFT to. The address must be a valid address capable of receiving NFTs.
      * @param token_ The address of the NFT contract.
@@ -278,6 +268,7 @@ contract ZizyRewardsHub is OwnableUpgradeable, ReentrancyGuardUpgradeable, ERC72
         IERC721Upgradeable nft = IERC721Upgradeable(token_);
         require(nft.ownerOf(tokenId_) == address(this), "Rewards hub contract is not owner of this nft");
         nft.safeTransferFrom(address(this), to_, tokenId_);
+        emit RewardWithdraw(RewardType.NFT, token_, 0, tokenId_);
     }
 
     /**
@@ -314,7 +305,10 @@ contract ZizyRewardsHub is OwnableUpgradeable, ReentrancyGuardUpgradeable, ERC72
      */
     function _setRewardDefiner(address rewardDefiner_) internal {
         require(rewardDefiner_ != address(0), "Reward definer address can not be zero");
-        rewardDefiner = rewardDefiner_;
+        if (rewardDefiner != rewardDefiner_) {
+            rewardDefiner = rewardDefiner_;
+            emit SetRewardDefiner(rewardDefiner_);
+        }
     }
 
     /**

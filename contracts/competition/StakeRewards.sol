@@ -71,6 +71,41 @@ contract StakeRewards is DepositWithdraw {
      */
     event RewardConfigUpdated(uint rewardId, bool vestingEnabled, uint snapshotMin, uint snapshotMax, uint vestingDayInterval);
 
+    /**
+     * @notice This event is emitted when a booster is set or updated.
+     * @param boosterId The ID of the booster.
+     * @param boosterType The type of the booster (StakingBalance or HoldingPOPA).
+     * @param contractAddress The address of the contract associated with the booster.
+     * @param amount The amount or condition associated with the booster (e.g., stake balance amount).
+     * @param boostPercentage The boost percentage offered by the booster.
+     * @param isNew A flag indicating whether the booster is a new addition or updated.
+     */
+    event SetBooster(uint16 boosterId, BoosterType boosterType, address contractAddress, uint amount, uint boostPercentage, bool isNew);
+
+    /**
+     * @notice This event is emitted when the staking contract address is updated.
+     * @param stakingContract The new address of the staking contract.
+     */
+    event StakingContractUpdate(address stakingContract);
+
+    /**
+     * @notice This event is emitted when the reward definer contract address is updated.
+     * @param rewardDefiner The new address of the reward definer contract.
+     */
+    event RewardDefinerUpdate(address rewardDefiner);
+
+    /**
+     * @notice This event is emitted when the reward tiers are updated for a specific reward.
+     * @param rewardId The ID of the reward for which the tiers are updated.
+     */
+    event RewardTiersUpdate(uint rewardId);
+
+    /**
+     * @notice This event is emitted when a booster is removed.
+     * @param boosterId The ID of the removed booster.
+     */
+    event BoosterRemoved(uint16 boosterId);
+
     /// @notice Enum for reward types
     enum RewardType {
         Token,
@@ -325,11 +360,13 @@ contract StakeRewards is DepositWithdraw {
             contractAddress_ = address(0);
         }
 
-        if (!_boosters[boosterId_]._exist) {
+        bool isExist = _boosters[boosterId_]._exist;
+        if (!isExist) {
             _boosterIds.push(boosterId_);
         }
 
         _boosters[boosterId_] = Booster(type_, contractAddress_, amount_, boostPercentage_, true);
+        emit SetBooster(boosterId_, type_, contractAddress_, amount_, boostPercentage_, !isExist);
     }
 
     /**
@@ -356,6 +393,7 @@ contract StakeRewards is DepositWithdraw {
                 _boosterIds[i] = _boosterIds[boosterCount - 1];
                 _boosterIds.pop();
                 _boosters[boosterId_] = booster;
+                emit BoosterRemoved(boosterId_);
                 break;
             }
         }
@@ -476,6 +514,7 @@ contract StakeRewards is DepositWithdraw {
     function setStakingContract(address contract_) public onlyOwner {
         require(contract_ != address(0), "Contract address cant be zero address");
         stakingContract = IZizyCompetitionStaking(contract_);
+        emit StakingContractUpdate(contract_);
     }
 
     /**
@@ -488,6 +527,7 @@ contract StakeRewards is DepositWithdraw {
     function setRewardDefiner(address rewardDefiner_) public onlyOwner {
         require(rewardDefiner_ != address(0), "Reward definer address cant be zero address");
         rewardDefiner = rewardDefiner_;
+        emit RewardDefinerUpdate(rewardDefiner_);
     }
 
     /**
@@ -657,6 +697,8 @@ contract StakeRewards is DepositWithdraw {
 
             prevMax = tier_.stakeMax;
         }
+
+        emit RewardTiersUpdate(rewardId_);
     }
 
     /**

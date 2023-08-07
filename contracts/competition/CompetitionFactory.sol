@@ -58,6 +58,67 @@ contract CompetitionFactory is OwnableUpgradeable, ReentrancyGuardUpgradeable {
      */
     event AllocationUpdate(address indexed account, uint256 periodId, uint256 competitionId, uint32 bought, uint32 max);
 
+    /**
+     * @notice This event is emitted when the payment receiver address is updated.
+     * @param receiver The new address of the payment receiver.
+     */
+    event PaymentReceiverUpdate(address receiver);
+
+    /**
+     * @notice This event is emitted when the ticket minter address is updated.
+     * @param ticketMinter The new address of the ticket minter.
+     */
+    event TicketMinterUpdate(address ticketMinter);
+
+    /**
+     * @notice This event is emitted when the staking contract address is updated.
+     * @param stakingContract The new address of the staking contract.
+     */
+    event StakingContractUpdate(address stakingContract);
+
+    /**
+     * @notice This event is emitted when the ticket deployer address is updated.
+     * @param ticketDeployer The new address of the ticket deployer.
+     */
+    event TicketDeployerUpdate(address ticketDeployer);
+
+    /**
+     * @notice This event is emitted when the active period ID is updated.
+     * @param newActivePeriodId The new active period ID.
+     */
+    event ActivePeriodUpdate(uint newActivePeriodId);
+
+    /**
+     * @notice This event is emitted when a period is updated.
+     * @param periodId The ID of the updated period.
+     */
+    event PeriodUpdate(uint periodId);
+
+    /**
+     * @notice This event is emitted when the payment configuration is updated for a specific period and competition.
+     * @param periodId The ID of the period for which the payment configuration is updated.
+     * @param competitionId The ID of the competition for which the payment configuration is updated.
+     * @param token The address of the token used for payments.
+     * @param ticketPrice The updated ticket price for the competition.
+     */
+    event PaymentConfigUpdate(uint periodId, uint competitionId, address token, uint ticketPrice);
+
+    /**
+     * @notice This event is emitted when the snapshot ranges are updated for a specific period and competition.
+     * @param periodId The ID of the period for which the snapshot ranges are updated.
+     * @param competitionId The ID of the competition for which the snapshot ranges are updated.
+     * @param min The updated minimum snapshot ID.
+     * @param max The updated maximum snapshot ID.
+     */
+    event SnapshotRangesUpdate(uint256 periodId, uint256 competitionId, uint min, uint max);
+
+    /**
+     * @notice This event is emitted when the tiers are updated for a specific period and competition.
+     * @param periodId The ID of the period for which the tiers are updated.
+     * @param competitionId The ID of the competition for which the tiers are updated.
+     */
+    event TiersUpdate(uint periodId, uint competitionId);
+
     // Add competition allocation limit
     struct Competition {
         IZizyCompetitionTicket ticket;
@@ -230,6 +291,7 @@ contract CompetitionFactory is OwnableUpgradeable, ReentrancyGuardUpgradeable {
     function setPaymentReceiver(address receiver_) external onlyOwner {
         require(receiver_ != address(0), "Payment receiver can not be zero address");
         paymentReceiver = receiver_;
+        emit PaymentReceiverUpdate(receiver_);
     }
 
     /**
@@ -239,6 +301,7 @@ contract CompetitionFactory is OwnableUpgradeable, ReentrancyGuardUpgradeable {
     function setTicketMinter(address minter_) external onlyOwner {
         require(minter_ != address(0), "Minter address can not be zero");
         ticketMinter = minter_;
+        emit TicketMinterUpdate(minter_);
     }
 
     /**
@@ -354,6 +417,7 @@ contract CompetitionFactory is OwnableUpgradeable, ReentrancyGuardUpgradeable {
     function setStakingContract(address stakingContract_) external onlyOwner {
         require(address(stakingContract_) != address(0), "ZizyComp: Staking contract address can not be zero");
         stakingContract = IZizyCompetitionStaking(stakingContract_);
+        emit StakingContractUpdate(stakingContract_);
     }
 
     /**
@@ -363,6 +427,7 @@ contract CompetitionFactory is OwnableUpgradeable, ReentrancyGuardUpgradeable {
     function setTicketDeployer(address ticketDeployer_) external onlyOwner {
         require(address(ticketDeployer_) != address(0), "ZizyComp: Ticket deployer contract address can not be zero");
         ticketDeployer = ITicketDeployer(ticketDeployer_);
+        emit TicketDeployerUpdate(ticketDeployer_);
     }
 
     /**
@@ -385,6 +450,8 @@ contract CompetitionFactory is OwnableUpgradeable, ReentrancyGuardUpgradeable {
         }
 
         activePeriod = periodId;
+
+        emit ActivePeriodUpdate(periodId);
     }
 
     /**
@@ -426,6 +493,8 @@ contract CompetitionFactory is OwnableUpgradeable, ReentrancyGuardUpgradeable {
         period.endTime = endTime_;
         period.ticketBuyStartTime = ticketBuyStart_;
         period.ticketBuyEndTime = ticketBuyEnd_;
+
+        emit PeriodUpdate(periodId_);
 
         return true;
     }
@@ -481,6 +550,8 @@ contract CompetitionFactory is OwnableUpgradeable, ReentrancyGuardUpgradeable {
         comp.pairDefined = true;
         comp.sellToken = token;
         comp.ticketPrice = ticketPrice;
+
+        emit PaymentConfigUpdate(periodId, competitionId, token, ticketPrice);
     }
 
     /**
@@ -499,6 +570,8 @@ contract CompetitionFactory is OwnableUpgradeable, ReentrancyGuardUpgradeable {
 
         comp.snapshotMin = min;
         comp.snapshotMax = max;
+
+        emit SnapshotRangesUpdate(periodId, competitionId, min, max);
     }
 
     /**
@@ -530,7 +603,6 @@ contract CompetitionFactory is OwnableUpgradeable, ReentrancyGuardUpgradeable {
 
         delete _compTiers[compHash];
 
-
         for (uint i = 0; i < length; ++i) {
             bool isFirst = (i == 0);
             bool isLast = (i == (length - 1));
@@ -545,6 +617,8 @@ contract CompetitionFactory is OwnableUpgradeable, ReentrancyGuardUpgradeable {
 
             prevMax = max;
         }
+
+        emit TiersUpdate(periodId, competitionId);
     }
 
     /**

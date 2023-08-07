@@ -22,6 +22,12 @@ contract ZizyCompetitionTicket is ERC721, ERC721Enumerable, ERC721Pausable, Owna
     event TicketMinted(address ticketOwner, uint256 ticketId);
 
     /**
+     * @dev Emitted when base uri changed
+     * @param timestamp Block timestamp
+     */
+    event BaseURIUpdated(uint timestamp);
+
+    /**
      * @dev Ticket base uri [optional]
      */
     string public baseUri = "";
@@ -46,6 +52,7 @@ contract ZizyCompetitionTicket is ERC721, ERC721Enumerable, ERC721Pausable, Owna
      */
     function setBaseURI(string memory baseUri_) external virtual onlyOwner {
         baseUri = baseUri_;
+        emit BaseURIUpdated(block.timestamp);
     }
 
     /**

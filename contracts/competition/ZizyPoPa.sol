@@ -22,6 +22,12 @@ contract ZizyPoPa is ERC721, ERC721Enumerable, ERC721Pausable, Ownable {
     event PoPaMinted(address to, uint256 tokenId);
 
     /**
+     * @dev Emitted when base uri changed
+     * @param timestamp Block timestamp
+     */
+    event BaseURIUpdated(uint timestamp);
+
+    /**
      * @dev Popa base uri [optional]
      */
     string public baseUri = "";
@@ -88,6 +94,7 @@ contract ZizyPoPa is ERC721, ERC721Enumerable, ERC721Pausable, Ownable {
      */
     function setBaseURI(string memory baseUri_) external virtual onlyOwner {
         baseUri = baseUri_;
+        emit BaseURIUpdated(block.timestamp);
     }
 
     /**

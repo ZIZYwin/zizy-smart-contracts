@@ -47,6 +47,24 @@ contract ZizyPoPaFactory is OwnableUpgradeable, ReentrancyGuardUpgradeable {
      */
     event AllocationPercentageUpdated(uint percentage);
 
+    /**
+     * @dev Emitted when the popa minter updated
+     * @param minter Minter account
+     */
+    event PopaMinterUpdated(address minter);
+
+    /**
+     * @dev Emitted when the popa claim payment amount updated
+     * @param amount New payment amount
+     */
+    event PopaClaimPaymentUpdate(uint amount);
+
+    /**
+     * @dev Emitted when the competition factory address updated
+     * @param factoryAddress The address of competition factory
+     */
+    event CompFactoryUpdated(address factoryAddress);
+
     /// @notice PoPA Claim payment amount (PoPA mint cost for network fee)
     uint256 public claimPayment;
 
@@ -119,6 +137,7 @@ contract ZizyPoPaFactory is OwnableUpgradeable, ReentrancyGuardUpgradeable {
     function setPopaMinter(address minter_) external onlyOwner {
         require(minter_ != address(0), "Minter account can not be zero");
         popaMinter = minter_;
+        emit PopaMinterUpdated(minter_);
     }
 
     /**
@@ -130,6 +149,7 @@ contract ZizyPoPaFactory is OwnableUpgradeable, ReentrancyGuardUpgradeable {
      */
     function setClaimPaymentAmount(uint256 amount_) external onlyOwner {
         claimPayment = amount_;
+        emit PopaClaimPaymentUpdate(amount_);
     }
 
     /**
@@ -219,6 +239,7 @@ contract ZizyPoPaFactory is OwnableUpgradeable, ReentrancyGuardUpgradeable {
     function _setCompetitionFactory(address competitionFactory_) internal {
         require(competitionFactory_ != address(0), "Competition factory cant be zero address");
         competitionFactory = competitionFactory_;
+        emit CompFactoryUpdated(competitionFactory_);
     }
 
     /**
