@@ -68,6 +68,12 @@ contract ZizyCompetitionStaking is OwnableUpgradeable {
     /// @notice The percentage of tokens that enter the cooling off period after staking
     uint8 public coolingPercentage;
 
+    /// @notice Stake/Unstake lock mechanism moderator
+    address public lockModerator;
+
+    // @notice Un-stake time locks for accounts
+    mapping(address => uint) private timeLocks;
+
     // @notice Stake balances for each address
     mapping(address => uint256) private balances;
 
@@ -143,6 +149,19 @@ contract ZizyCompetitionStaking is OwnableUpgradeable {
     event CoolingOffSettingsUpdated(uint8 percentage, uint8 coolingDay, uint8 coolestDay);
 
     /**
+    * @notice Event emitted when the lock moderator updated
+    * @param moderator Lock moderator address
+    */
+    event LockModeratorUpdated(address moderator);
+
+    /**
+    * @notice Event emitted when any account unstake time locked
+    * @param account Locked account
+    * @param lockTime Lock time
+    */
+    event UnstakeTimeLock(address account, uint lockTime);
+
+    /**
      * @dev Modifier that allows the function to be called only from the competition factory contract
      */
     modifier onlyCallFromFactory() {
@@ -164,6 +183,14 @@ contract ZizyCompetitionStaking is OwnableUpgradeable {
     modifier whenPeriodExist() {
         uint256 periodId = currentPeriod;
         require(periodId > 0 && periods[periodId]._exist, "There is no period exist");
+        _;
+    }
+
+    /**
+     * @dev Modifier that checks caller is lock moderator
+     */
+    modifier onlyModerator() {
+        require(_msgSender() == lockModerator, "Only moderators can call this function");
         _;
     }
 
@@ -207,6 +234,39 @@ contract ZizyCompetitionStaking is OwnableUpgradeable {
 
         stakeToken = IERC20Upgradeable(stakeToken_);
         feeAddress = feeReceiver_;
+    }
+
+    /**
+     * @notice Sets the address of the lock moderator.
+     * @param moderator The address of the new lock moderator.
+     */
+    function setLockModerator(address moderator) external onlyOwner {
+        require(moderator != address(0), "Lock moderator cant be zero address");
+        if (lockModerator != moderator) {
+            lockModerator = moderator;
+            emit LockModeratorUpdated(moderator);
+        }
+    }
+
+    /**
+     * @notice Set time lock for un-stake
+     * @param account Lock account
+     * @param lockTime Lock timer as second
+     */
+    function setTimeLock(address account, uint lockTime) external onlyModerator {
+        require(account != address(0), "Account cant be zero address");
+        require(lockTime > 0 && lockTime <= 300, "Lock time should between 0-5 minute");
+        timeLocks[account] = (block.timestamp + lockTime);
+        emit UnstakeTimeLock(account, lockTime);
+    }
+
+    /**
+     * @notice Get time lock status of any account
+     * @param account Account for check status
+     */
+    function isTimeLocked(address account) public view returns (bool) {
+        uint unlockTime = timeLocks[account];
+        return (unlockTime > block.timestamp);
     }
 
     /**
@@ -567,6 +627,7 @@ contract ZizyCompetitionStaking is OwnableUpgradeable {
      * It emits the UnStake event.
      */
     function unStake(uint256 amount_) external whenFeeAddressExist {
+        require(!isTimeLocked(_msgSender()), "Time lock active");
         uint256 currentBalance = balanceOf(_msgSender());
         uint256 currentSnapshot = snapshotId;
         uint256 periodId = currentPeriod;

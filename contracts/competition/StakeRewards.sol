@@ -4,6 +4,7 @@ pragma solidity ^0.8.17;
 
 import "./../utils/DepositWithdraw.sol";
 import "./IZizyCompetitionStaking.sol";
+import "@openzeppelin/contracts-upgradeable/token/ERC721/extensions/IERC721EnumerableUpgradeable.sol";
 
 /**
  * @title Stake Rewards Contract
@@ -79,8 +80,7 @@ contract StakeRewards is DepositWithdraw {
 
     /// @notice Enum for reward booster types
     enum BoosterType {
-        HoldingNFT,
-        ERC20Balance,
+        HoldingPOPA,
         StakingBalance
     }
 
@@ -88,7 +88,7 @@ contract StakeRewards is DepositWithdraw {
     struct Booster {
         BoosterType boosterType;
         address contractAddress; // Booster target contract
-        uint amount; // Only for ERC20Balance & StakeBalance boosters
+        uint amount; // Only for StakeBalance boosters
         uint boostPercentage; // Boost percentage
         bool _exist;
     }
@@ -176,6 +176,9 @@ contract StakeRewards is DepositWithdraw {
 
     /// @dev Reward claim state for rewardId [Using for clear rewards] [rewardId > bool]
     mapping(uint => bool) private _isRewardClaimed;
+
+    /// @dev Booster POPA NFT use state for increase reward ratio by given percentage [keccak(rewardId, popaContract, popaId) > vestingIndex > useState]
+    mapping(bytes32 => mapping(uint => bool)) private _isBoosterPopaUsed;
 
     /// @dev Staking contract
     IZizyCompetitionStaking private stakingContract;
@@ -298,9 +301,9 @@ contract StakeRewards is DepositWithdraw {
     /**
      * @notice Sets or updates a booster.
      * @param boosterId_ The ID of the booster.
-     * @param type_ The type of the booster (HoldingNFT, ERC20Balance, StakingBalance).
-     * @param contractAddress_ The address of the contract (for ERC20Balance and HoldingNFT boosters).
-     * @param amount_ The amount required for the booster (for ERC20Balance and StakingBalance boosters).
+     * @param type_ The type of the booster (HoldingPOPA, StakingBalance).
+     * @param contractAddress_ The address of the contract (for HoldingPOPA boosters).
+     * @param amount_ The amount required for the booster (for StakingBalance boosters).
      * @param boostPercentage_ The boost percentage for the booster.
      *
      * @dev This function sets or updates a booster with the given parameters. It validates the inputs based on the booster type.
@@ -308,15 +311,15 @@ contract StakeRewards is DepositWithdraw {
      */
     function setBooster(uint16 boosterId_, BoosterType type_, address contractAddress_, uint amount_, uint boostPercentage_) external onlyRewardDefiner {
         // Validate
-        if (type_ == BoosterType.ERC20Balance || type_ == BoosterType.StakingBalance) {
+        if (type_ == BoosterType.StakingBalance) {
             require(amount_ > 0, "Amount should be higher than zero");
         }
-        if (type_ == BoosterType.ERC20Balance || type_ == BoosterType.HoldingNFT) {
+        if (type_ == BoosterType.HoldingPOPA) {
             require(contractAddress_ != address(0), "Contract address cant be zero address");
         }
 
         // Format
-        if (type_ == BoosterType.HoldingNFT) {
+        if (type_ == BoosterType.HoldingPOPA) {
             amount_ = 0;
         } else if (type_ == BoosterType.StakingBalance) {
             contractAddress_ = address(0);
@@ -361,15 +364,16 @@ contract StakeRewards is DepositWithdraw {
     /**
      * @notice Get the account's reward booster percentage.
      * @param account_ The address of the account.
+     * @param rewardId_ Reward id
+     * @param vestingIndex_ Vesting index
      * @return The total boost percentage for the account based on the defined boosters.
      *
      * @dev This function calculates the total boost percentage for the given account by iterating through the boosters.
      *      It checks if each booster exists and applies the corresponding boost percentage based on the booster type.
      *      - For BoosterType.StakingBalance: If the staking balance is higher than the specified amount, the boost percentage is added.
-     *      - For BoosterType.ERC20Balance: If the ERC20 balance is higher than the specified amount, the boost percentage is added.
-     *      - For BoosterType.HoldingNFT: If the account holds at least one NFT of the specified contract, the boost percentage is added.
+     *      - For BoosterType.HoldingPOPA: If the account holds at least one POPA of the specified contract, the boost percentage is added.
      */
-    function getAccountBoostPercentage(address account_) public view returns (uint) {
+    function getAccountBoostPercentage(address account_, uint rewardId_, uint vestingIndex_) internal view returns (uint) {
         uint percentage = 0;
         uint boosterCount = getBoosterCount();
         uint16[] memory ids = _boosterIds;
@@ -386,20 +390,66 @@ contract StakeRewards is DepositWithdraw {
                 if (stakingContract.balanceOf(account_) >= booster.amount) {
                     percentage += booster.boostPercentage;
                 }
-            } else if (booster.boosterType == BoosterType.ERC20Balance) {
-                // Add additional boost percentage if erc20 balance is higher than given balance condition
-                if (IERC20Upgradeable(booster.contractAddress).balanceOf(account_) >= booster.amount) {
-                    percentage += booster.boostPercentage;
-                }
-            } else if (booster.boosterType == BoosterType.HoldingNFT) {
-                // Add additional boost percentage if account is given NFT holder
-                if (IERC721Upgradeable(booster.contractAddress).balanceOf(account_) >= 1) {
-                    percentage += booster.boostPercentage;
+            } else if (booster.boosterType == BoosterType.HoldingPOPA) {
+                // Add additional boost percentage if account is given POPA holder
+                IERC721EnumerableUpgradeable popaNFT = IERC721EnumerableUpgradeable(booster.contractAddress);
+
+                if (popaNFT.balanceOf(account_) >= 1) {
+                    // Every account can claim single popa
+                    uint popaID = popaNFT.tokenOfOwnerByIndex(account_, 0);
+                    // [keccak(rewardId, popaContract, popaId) > vestingIndex > useState]
+                    bytes32 popaKey = keccak256(abi.encode(rewardId_, booster.contractAddress, popaID));
+                    bool isPopaUsed = _isBoosterPopaUsed[popaKey][vestingIndex_];
+                    if (!isPopaUsed) {
+                        percentage += booster.boostPercentage;
+                    }
                 }
             }
         }
 
         return percentage;
+    }
+
+    /**
+     * @notice Internal function to apply boosters to the given account for a specific reward.
+     * @param account_ The address of the account to apply the boosters.
+     * @param rewardId_ The ID of the specific reward to apply the boosters.
+     * @param rewardId_ Vesting index for apply booster use states
+     */
+    function _applyBoosters(address account_, uint rewardId_, uint vestingIndex_) internal {
+        uint boosterCount = getBoosterCount();
+        uint16[] memory ids = _boosterIds;
+
+        for (uint i = 0; i < boosterCount; i++) {
+            uint16 boosterId = ids[i];
+            Booster memory booster = _boosters[boosterId];
+            if (!booster._exist) {
+                continue;
+            }
+
+            if (booster.boosterType == BoosterType.StakingBalance) {
+                // Stake amount check for apply time-lock
+                if (stakingContract.balanceOf(account_) >= booster.amount) {
+                    // Set 2 minute time lock for account
+                    stakingContract.setTimeLock(account_, 120);
+                }
+            } else if (booster.boosterType == BoosterType.HoldingPOPA) {
+                // Popa holding check for set as used state
+                IERC721EnumerableUpgradeable popaNFT = IERC721EnumerableUpgradeable(booster.contractAddress);
+
+                if (popaNFT.balanceOf(account_) >= 1) {
+                    // Every account can claim single popa
+                    uint popaID = popaNFT.tokenOfOwnerByIndex(account_, 0);
+                    // [keccak(rewardId, popaContract, popaId) > vestingIndex > useState]
+                    bytes32 popaKey = keccak256(abi.encode(rewardId_, booster.contractAddress, popaID));
+                    bool isPopaUsed = _isBoosterPopaUsed[popaKey][vestingIndex_];
+                    if (!isPopaUsed) {
+                        // Set popa used as a booster for specific reward. Every popa can be used one-time per reward
+                        _isBoosterPopaUsed[popaKey][vestingIndex_] = true;
+                    }
+                }
+            }
+        }
     }
 
     /**
@@ -725,7 +775,7 @@ contract StakeRewards is DepositWithdraw {
         // Disable reward & reward config update
         _isRewardClaimed[rewardId_] = true;
 
-        uint boosterPercentage = getAccountBoostPercentage(account_);
+        uint boosterPercentage = getAccountBoostPercentage(account_, rewardId_, vestingIndex_);
         uint boostedAmount = (reward.amount * (100 + boosterPercentage)) / 100;
 
         Reward memory baseReward = getReward(rewardId_);
@@ -733,6 +783,9 @@ contract StakeRewards is DepositWithdraw {
 
         // Update total distributed amount of base reward
         _rewards[rewardId_].totalDistributed += boostedAmount;
+
+        // Apply boosters
+        _applyBoosters(account_, rewardId_, vestingIndex_);
 
         if (reward.chainId == chainId()) {
             if (reward.rewardType == RewardType.Native) {
