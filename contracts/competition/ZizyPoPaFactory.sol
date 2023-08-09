@@ -102,6 +102,7 @@ contract ZizyPoPaFactory is OwnableUpgradeable, ReentrancyGuardUpgradeable {
 
     /**
      * @dev Constructor function
+     * @custom:oz-upgrades-unsafe-allow constructor
      */
     constructor() {
         _disableInitializers();

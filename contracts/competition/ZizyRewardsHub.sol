@@ -144,6 +144,7 @@ contract ZizyRewardsHub is OwnableUpgradeable, ReentrancyGuardUpgradeable, ERC72
 
     /**
      * @dev Constructor function
+     * @custom:oz-upgrades-unsafe-allow constructor
      */
     constructor() {
         _disableInitializers();

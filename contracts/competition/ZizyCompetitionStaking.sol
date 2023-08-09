@@ -227,6 +227,7 @@ contract ZizyCompetitionStaking is OwnableUpgradeable {
 
     /**
      * @dev Constructor function
+     * @custom:oz-upgrades-unsafe-allow constructor
      */
     constructor() {
         _disableInitializers();

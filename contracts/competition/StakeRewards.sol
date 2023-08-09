@@ -216,7 +216,7 @@ contract StakeRewards is DepositWithdraw {
     mapping(bytes32 => mapping(uint => bool)) private _isBoosterPopaUsed;
 
     /// @dev Staking contract
-    IZizyCompetitionStaking private stakingContract;
+    IZizyCompetitionStaking public stakingContract;
 
     /**
      * @dev Modifier that allows only the reward definer to execute a function.
@@ -236,6 +236,7 @@ contract StakeRewards is DepositWithdraw {
 
     /**
      * @dev Constructor function
+     * @custom:oz-upgrades-unsafe-allow constructor
      */
     constructor() {
         _disableInitializers();
