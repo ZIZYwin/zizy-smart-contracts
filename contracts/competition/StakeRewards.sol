@@ -412,7 +412,7 @@ contract StakeRewards is DepositWithdraw {
      *      - For BoosterType.StakingBalance: If the staking balance is higher than the specified amount, the boost percentage is added.
      *      - For BoosterType.HoldingPOPA: If the account holds at least one POPA of the specified contract, the boost percentage is added.
      */
-    function getAccountBoostPercentage(address account_, uint rewardId_, uint vestingIndex_) internal view returns (uint) {
+    function getAccountBoostPercentage(address account_, uint rewardId_, uint vestingIndex_) public view returns (uint) {
         uint percentage = 0;
         uint boosterCount = getBoosterCount();
         uint16[] memory ids = _boosterIds;
