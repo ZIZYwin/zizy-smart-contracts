@@ -39,6 +39,12 @@ contract TokenVesting is Ownable, ReentrancyGuard {
     uint256 private vestingSchedulesTotalAmount;
     mapping(address => uint256) private holdersVestingCount;
 
+    // Events
+    event ScheduleCreated(address indexed beneficiary, bytes32 scheduleId, uint256 cliff, uint256 start, uint256 duration, uint256 slicePeriodSeconds, bool revocable, uint256 amount);
+    event ScheduleRevoked(bytes32 scheduleId);
+    event Withdraw(address indexed withdrawer, uint256 amount);
+    event TokenReleased(bytes32 scheduleId, uint256 amount);
+
     /**
      * @dev Reverts if the vesting schedule does not exist or has been revoked.
      */
@@ -58,17 +64,6 @@ contract TokenVesting is Ownable, ReentrancyGuard {
         // Set the token address.
         _token = IERC20(token_);
     }
-
-    /**
-     * @dev This function is called for plain Ether transfers, i.e. for every call with empty calldata.
-     */
-    receive() external payable {}
-
-    /**
-     * @dev Fallback function is executed if none of the other functions match the function
-     * identifier or no data was provided with the function call.
-     */
-    fallback() external payable {}
 
     /**
      * @notice Creates a new vesting schedule for a beneficiary.
@@ -120,6 +115,8 @@ contract TokenVesting is Ownable, ReentrancyGuard {
         vestingSchedulesIds.push(vestingScheduleId);
         uint256 currentVestingCount = holdersVestingCount[_beneficiary];
         holdersVestingCount[_beneficiary] = currentVestingCount + 1;
+
+        emit ScheduleCreated(_beneficiary, vestingScheduleId, cliff, _start, _duration, _slicePeriodSeconds, _revocable, _amount);
     }
 
     /**
@@ -144,6 +141,8 @@ contract TokenVesting is Ownable, ReentrancyGuard {
         vestingSchedule.released;
         vestingSchedulesTotalAmount = vestingSchedulesTotalAmount - unreleased;
         vestingSchedule.revoked = true;
+
+        emit ScheduleRevoked(vestingScheduleId);
     }
 
     /**
@@ -159,6 +158,8 @@ contract TokenVesting is Ownable, ReentrancyGuard {
          * @dev Replaced owner() with msg.sender => address of WITHDRAWER_ROLE
          */
         SafeERC20.safeTransfer(_token, msg.sender, amount);
+
+        emit Withdraw(msg.sender, amount);
     }
 
     /**
@@ -186,11 +187,10 @@ contract TokenVesting is Ownable, ReentrancyGuard {
             "TokenVesting: cannot release tokens, not enough vested tokens"
         );
         vestingSchedule.released = vestingSchedule.released + amount;
-        address payable beneficiaryPayable = payable(
-            vestingSchedule.beneficiary
-        );
         vestingSchedulesTotalAmount = vestingSchedulesTotalAmount - amount;
-        SafeERC20.safeTransfer(_token, beneficiaryPayable, amount);
+        SafeERC20.safeTransfer(_token, vestingSchedule.beneficiary, amount);
+
+        emit TokenReleased(vestingScheduleId, amount);
     }
 
     /**

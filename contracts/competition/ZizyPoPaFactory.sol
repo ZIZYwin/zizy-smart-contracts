@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity ^0.8.9;
+pragma solidity ^0.8.17;
 
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
@@ -47,6 +47,24 @@ contract ZizyPoPaFactory is OwnableUpgradeable, ReentrancyGuardUpgradeable {
      */
     event AllocationPercentageUpdated(uint percentage);
 
+    /**
+     * @dev Emitted when the popa minter updated
+     * @param minter Minter account
+     */
+    event PopaMinterUpdated(address minter);
+
+    /**
+     * @dev Emitted when the popa claim payment amount updated
+     * @param amount New payment amount
+     */
+    event PopaClaimPaymentUpdate(uint amount);
+
+    /**
+     * @dev Emitted when the competition factory address updated
+     * @param factoryAddress The address of competition factory
+     */
+    event CompFactoryUpdated(address factoryAddress);
+
     /// @notice PoPA Claim payment amount (PoPA mint cost for network fee)
     uint256 public claimPayment;
 
@@ -83,6 +101,14 @@ contract ZizyPoPaFactory is OwnableUpgradeable, ReentrancyGuardUpgradeable {
     }
 
     /**
+     * @dev Constructor function
+     * @custom:oz-upgrades-unsafe-allow constructor
+     */
+    constructor() {
+        _disableInitializers();
+    }
+
+    /**
      * @notice Initializes the contract
      * @param competitionFactory_ The address of the CompetitionFactory contract
      *
@@ -109,9 +135,10 @@ contract ZizyPoPaFactory is OwnableUpgradeable, ReentrancyGuardUpgradeable {
      * It sets the popaMinter address to the specified minter_ address.
      * @dev Throws an error if the minter_ address is zero.
      */
-    function setPopaMinter(address minter_) public onlyOwner {
+    function setPopaMinter(address minter_) external onlyOwner {
         require(minter_ != address(0), "Minter account can not be zero");
         popaMinter = minter_;
+        emit PopaMinterUpdated(minter_);
     }
 
     /**
@@ -123,6 +150,7 @@ contract ZizyPoPaFactory is OwnableUpgradeable, ReentrancyGuardUpgradeable {
      */
     function setClaimPaymentAmount(uint256 amount_) external onlyOwner {
         claimPayment = amount_;
+        emit PopaClaimPaymentUpdate(amount_);
     }
 
     /**
@@ -147,7 +175,7 @@ contract ZizyPoPaFactory is OwnableUpgradeable, ReentrancyGuardUpgradeable {
      * @dev Throws an error if the percentage is not between 0 and 100.
      */
     function _setPopaClaimAllocationPercentage(uint percentage) internal {
-        require(percentage >= 0 && percentage <= 100, "Allocation percentage should between 0-100");
+        require(percentage <= 100, "Allocation percentage should between 0-100");
         _popaClaimAllocationPercentage = percentage;
         emit AllocationPercentageUpdated(percentage);
     }
@@ -163,6 +191,19 @@ contract ZizyPoPaFactory is OwnableUpgradeable, ReentrancyGuardUpgradeable {
      */
     function popaClaimed(address account, uint256 periodId) external view returns (bool) {
         return _popaClaimed[account][periodId];
+    }
+
+    /**
+     * @notice Checks if a claimed PoPA has been minted from system
+     * @param account The account to check the mint status for
+     * @param periodId The period ID of the PoPA
+     * @return A boolean indicating whether the PoPA has been claimed or not
+     *
+     * @dev This function is callable by any external account.
+     * It returns the mint status of the specified PoPA for the given account.
+     */
+    function popaMinted(address account, uint256 periodId) external view returns (bool) {
+        return _popaClaimMinted[account][periodId];
     }
 
     /**
@@ -199,6 +240,7 @@ contract ZizyPoPaFactory is OwnableUpgradeable, ReentrancyGuardUpgradeable {
     function _setCompetitionFactory(address competitionFactory_) internal {
         require(competitionFactory_ != address(0), "Competition factory cant be zero address");
         competitionFactory = competitionFactory_;
+        emit CompFactoryUpdated(competitionFactory_);
     }
 
     /**
@@ -252,7 +294,7 @@ contract ZizyPoPaFactory is OwnableUpgradeable, ReentrancyGuardUpgradeable {
 
         require(_periodPopas[periodId_] == address(0), "Period popa already deployed");
 
-        ZizyPoPa popa = new ZizyPoPa(name_, symbol_, popaMinter);
+        ZizyPoPa popa = new ZizyPoPa(name_, symbol_, address(this));
         address contractAddress = address(popa);
         popa.transferOwnership(owner());
         _popas.push(address(popa));
@@ -281,8 +323,8 @@ contract ZizyPoPaFactory is OwnableUpgradeable, ReentrancyGuardUpgradeable {
     function mintClaimedPopa(address claimer_, uint256 periodId_, uint256 tokenId_) external onlyMinter {
         address popaContract = _periodPopas[periodId_];
         require(popaContract != address(0), "Unknown period id");
-        require(_popaClaimed[claimer_][periodId_] == true, "Not claimed by claimer");
-        require(_popaClaimMinted[claimer_][periodId_] == false, "Already minted");
+        require(_popaClaimed[claimer_][periodId_], "Not claimed by claimer");
+        require(!_popaClaimMinted[claimer_][periodId_], "Already minted");
 
         // Set minted state
         _popaClaimMinted[claimer_][periodId_] = true;
@@ -308,31 +350,35 @@ contract ZizyPoPaFactory is OwnableUpgradeable, ReentrancyGuardUpgradeable {
      * or the claim conditions are not met.
      */
     function claim(uint256 periodId_) external payable nonReentrant {
-        // Check payment limit
+        // Check payment limits
         if (msg.value < claimPayment) {
             revert("Insufficient claim payment");
+        }
+        if (msg.value > claimPayment) {
+            revert("Overpayment. Please reduce your payment amount");
         }
 
         address popaContract = _periodPopas[periodId_];
         if (popaContract == address(0)) {
             revert("Unknown period id");
         }
-        if (_popaClaimed[_msgSender()][periodId_] == true) {
+        if (_popaClaimed[_msgSender()][periodId_]) {
             revert("You already claimed this popa nft");
         }
 
-        bool canClaim = _claimableCheck(_msgSender(), periodId_);
-        if (canClaim == false) {
+        if (!_claimableCheck(_msgSender(), periodId_)) {
             revert("Claim conditions not met");
         }
 
+        // Set popaClaimed state
+        _popaClaimed[_msgSender()][periodId_] = true;
+
         // Transfer claim payment to minter
         (bool success,) = popaMinter.call{value : msg.value}("");
-        if (success == false) {
+        if (!success) {
             revert("Transfer failed");
         }
 
-        _popaClaimed[_msgSender()][periodId_] = true;
         emit PopaClaimed(_msgSender(), periodId_);
     }
 
@@ -376,7 +422,7 @@ contract ZizyPoPaFactory is OwnableUpgradeable, ReentrancyGuardUpgradeable {
      */
     function _claimableCheck(address account, uint256 periodId) internal view returns (bool) {
         // User already claimed PoPa
-        if (_popaClaimed[account][periodId] == true) {
+        if (_popaClaimed[account][periodId]) {
             return false;
         }
 
@@ -384,7 +430,7 @@ contract ZizyPoPaFactory is OwnableUpgradeable, ReentrancyGuardUpgradeable {
         ICompetitionFactory factory = ICompetitionFactory(competitionFactory);
 
         // Check period participation
-        if (factory.hasParticipation(account, periodId) == false) {
+        if (!factory.hasParticipation(account, periodId)) {
             return false;
         }
 
@@ -398,14 +444,14 @@ contract ZizyPoPaFactory is OwnableUpgradeable, ReentrancyGuardUpgradeable {
             uint compId = factory.getCompetitionIdWithIndex(periodId, i);
 
             // Continue if competition ticket buy settings isn't defined
-            if (factory.isCompetitionSettingsDefined(periodId, compId) == false) {
+            if (!factory.isCompetitionSettingsDefined(periodId, compId)) {
                 continue;
             }
 
             (uint32 bought, uint32 max, bool hasAlloc) = factory.getAllocation(account, periodId, compId);
 
             // User hasn't participated all competitions
-            if (hasAlloc == false || bought == 0) {
+            if (!hasAlloc || bought == 0) {
                 return false;
             }
 

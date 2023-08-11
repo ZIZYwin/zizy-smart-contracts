@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity ^0.8.0;
+pragma solidity ^0.8.17;
 
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
@@ -15,9 +15,14 @@ contract DepositWithdraw is OwnableUpgradeable, ReentrancyGuardUpgradeable, ERC7
     using SafeERC20Upgradeable for IERC20Upgradeable;
 
     /**
-     * @notice Allows anyone to deposit native coin on the contract
+     * @dev Storage gap for futures updates
      */
-    function deposit() public payable {
+    uint256[49] private __gap;
+
+    /**
+     * @notice Allows deposit native coin on the contract
+     */
+    function deposit() external payable onlyOwner {
     }
 
     /**
@@ -47,7 +52,6 @@ contract DepositWithdraw is OwnableUpgradeable, ReentrancyGuardUpgradeable, ERC7
      */
     function _sendToken(address to_, address token_, uint amount) internal {
         IERC20Upgradeable token = IERC20Upgradeable(token_);
-        require(token.balanceOf(address(this)) >= amount, "Insufficient token balance");
         token.safeTransfer(to_, amount);
     }
 
@@ -101,7 +105,6 @@ contract DepositWithdraw is OwnableUpgradeable, ReentrancyGuardUpgradeable, ERC7
      */
     function depositToken(address token_, uint amount) external onlyOwner {
         IERC20Upgradeable token = IERC20Upgradeable(token_);
-        require(token.allowance(_msgSender(), address(this)) >= amount, "Insufficient allowance");
         token.safeTransferFrom(_msgSender(), address(this), amount);
     }
 

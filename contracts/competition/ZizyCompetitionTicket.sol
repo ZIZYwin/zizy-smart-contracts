@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity ^0.8.9;
+pragma solidity ^0.8.17;
 
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
+import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Pausable.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
-import "../utils/ERC721Pausable.sol";
 
 /**
  * @title ZizyCompetitionTicket
@@ -20,6 +20,12 @@ contract ZizyCompetitionTicket is ERC721, ERC721Enumerable, ERC721Pausable, Owna
      * @param ticketId The ID of the minted ticket.
      */
     event TicketMinted(address ticketOwner, uint256 ticketId);
+
+    /**
+     * @dev Emitted when base uri changed
+     * @param timestamp Block timestamp
+     */
+    event BaseURIUpdated(uint timestamp);
 
     /**
      * @dev Ticket base uri [optional]
@@ -44,8 +50,9 @@ contract ZizyCompetitionTicket is ERC721, ERC721Enumerable, ERC721Pausable, Owna
      * @dev This function can only be called by the contract owner.
      * It sets the base URI for computing the {tokenURI} of each token.
      */
-    function setBaseURI(string memory baseUri_) public virtual onlyOwner {
+    function setBaseURI(string memory baseUri_) external virtual onlyOwner {
         baseUri = baseUri_;
+        emit BaseURIUpdated(block.timestamp);
     }
 
     /**
@@ -65,19 +72,9 @@ contract ZizyCompetitionTicket is ERC721, ERC721Enumerable, ERC721Pausable, Owna
      * It emits a `TicketMinted` event.
      * If the contract is paused on minting, it will temporarily unpause the contract during the minting process.
      */
-    function mint(address to_, uint256 ticketId_) public virtual onlyOwner {
-        bool isPausedOnMint = isPaused();
-
-        if (isPausedOnMint) {
-            _unpauseSilence();
-        }
-
+    function mint(address to_, uint256 ticketId_) external virtual onlyOwner {
         _mint(to_, ticketId_);
         emit TicketMinted(to_, ticketId_);
-
-        if (isPausedOnMint) {
-            _pauseSilence();
-        }
     }
 
     /**
@@ -86,7 +83,7 @@ contract ZizyCompetitionTicket is ERC721, ERC721Enumerable, ERC721Pausable, Owna
      * @dev This function can only be called by the contract owner.
      * It pauses all token transfers.
      */
-    function pause() public onlyOwner whenNotPaused {
+    function pause() external onlyOwner whenNotPaused {
         _pause();
     }
 
@@ -96,7 +93,7 @@ contract ZizyCompetitionTicket is ERC721, ERC721Enumerable, ERC721Pausable, Owna
      * @dev This function can only be called by the contract owner.
      * It unpauses all token transfers.
      */
-    function unpause() public onlyOwner whenPaused {
+    function unpause() external onlyOwner whenPaused {
         _unpause();
     }
 

@@ -1,17 +1,14 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity ^0.8.9;
+pragma solidity ^0.8.17;
 
 import "@openzeppelin/contracts-upgradeable/token/ERC20/utils/SafeERC20Upgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/utils/math/SafeMathUpgradeable.sol";
-import "../utils/IERC20.sol";
 import "./ICompetitionFactory.sol";
 
 // @dev We building sth big. Stay tuned!
 contract ZizyCompetitionStaking is OwnableUpgradeable {
     using SafeERC20Upgradeable for IERC20Upgradeable;
-    using SafeMathUpgradeable for uint256;
 
     /// @notice Struct for stake snapshots
     struct Snapshot {
@@ -70,6 +67,12 @@ contract ZizyCompetitionStaking is OwnableUpgradeable {
 
     /// @notice The percentage of tokens that enter the cooling off period after staking
     uint8 public coolingPercentage;
+
+    /// @notice Stake/Unstake lock mechanism moderator
+    address public lockModerator;
+
+    // @notice Un-stake time locks for accounts
+    mapping(address => uint) private timeLocks;
 
     // @notice Stake balances for each address
     mapping(address => uint256) private balances;
@@ -146,6 +149,39 @@ contract ZizyCompetitionStaking is OwnableUpgradeable {
     event CoolingOffSettingsUpdated(uint8 percentage, uint8 coolingDay, uint8 coolestDay);
 
     /**
+    * @notice Event emitted when the lock moderator updated
+    * @param moderator Lock moderator address
+    */
+    event LockModeratorUpdated(address moderator);
+
+    /**
+    * @notice Event emitted when any account unstake time locked
+    * @param account Locked account
+    * @param lockTime Lock time
+    */
+    event UnstakeTimeLock(address account, uint lockTime);
+
+    /**
+     * @dev Emitted when the competition factory address updated
+     * @param factoryAddress The address of competition factory
+     */
+    event CompFactoryUpdated(address factoryAddress);
+
+    /**
+     * @dev Emitted when the fee receiver address updated
+     * @param receiver Fee receiver address
+     */
+    event FeeReceiverUpdated(address receiver);
+
+    /**
+     * @dev Emitted when any account period stake average calculated
+     * @param account Account
+     * @param periodId Period ID
+     * @param average Average of period snapshots
+     */
+    event PeriodStakeAverageCalculated(address account, uint periodId, uint average);
+
+    /**
      * @dev Modifier that allows the function to be called only from the competition factory contract
      */
     modifier onlyCallFromFactory() {
@@ -166,7 +202,15 @@ contract ZizyCompetitionStaking is OwnableUpgradeable {
      */
     modifier whenPeriodExist() {
         uint256 periodId = currentPeriod;
-        require(periodId > 0 && periods[periodId]._exist == true, "There is no period exist");
+        require(periodId > 0 && periods[periodId]._exist, "There is no period exist");
+        _;
+    }
+
+    /**
+     * @dev Modifier that checks caller is lock moderator
+     */
+    modifier onlyModerator() {
+        require(_msgSender() == lockModerator, "Only moderators can call this function");
         _;
     }
 
@@ -176,9 +220,17 @@ contract ZizyCompetitionStaking is OwnableUpgradeable {
     modifier whenCurrentPeriodInBuyStage() {
         uint ts = block.timestamp;
         (uint start, uint end, uint ticketBuyStart, uint ticketBuyEnd, , , bool exist) = _getPeriod(currentPeriod);
-        require(exist == true, "Period does not exist");
+        require(exist, "Period does not exist");
         require(_isInRange(ts, start, end) && _isInRange(ts, ticketBuyStart, ticketBuyEnd), "Currently not in the range that can be calculated");
         _;
+    }
+
+    /**
+     * @dev Constructor function
+     * @custom:oz-upgrades-unsafe-allow constructor
+     */
+    constructor() {
+        _disableInitializers();
     }
 
     /**
@@ -190,7 +242,7 @@ contract ZizyCompetitionStaking is OwnableUpgradeable {
      * It sets the stake token, fee receiver, and initializes other state variables.
      */
     function initialize(address stakeToken_, address feeReceiver_) external initializer {
-        require(stakeToken_ != address(0), "Contract address can not be zero");
+        require(stakeToken_ != address(0) && feeReceiver_ != address(0), "Params cant be zero address");
 
         __Ownable_init();
 
@@ -206,12 +258,45 @@ contract ZizyCompetitionStaking is OwnableUpgradeable {
     }
 
     /**
+     * @notice Sets the address of the lock moderator.
+     * @param moderator The address of the new lock moderator.
+     */
+    function setLockModerator(address moderator) external onlyOwner {
+        require(moderator != address(0), "Lock moderator cant be zero address");
+        if (lockModerator != moderator) {
+            lockModerator = moderator;
+            emit LockModeratorUpdated(moderator);
+        }
+    }
+
+    /**
+     * @notice Set time lock for un-stake
+     * @param account Lock account
+     * @param lockTime Lock timer as second
+     */
+    function setTimeLock(address account, uint lockTime) external onlyModerator {
+        require(account != address(0), "Account cant be zero address");
+        require(lockTime > 0 && lockTime <= 300, "Lock time should between 0-5 minute");
+        timeLocks[account] = (block.timestamp + lockTime);
+        emit UnstakeTimeLock(account, lockTime);
+    }
+
+    /**
+     * @notice Get time lock status of any account
+     * @param account Account for check status
+     */
+    function isTimeLocked(address account) public view returns (bool) {
+        uint unlockTime = timeLocks[account];
+        return (unlockTime > block.timestamp);
+    }
+
+    /**
      * @notice Gets the current snapshot ID
      * @return The current snapshot ID
      *
      * @dev This function returns the ID of the current snapshot.
      */
-    function getSnapshotId() public view returns (uint) {
+    function getSnapshotId() external view returns (uint) {
         return snapshotId;
     }
 
@@ -228,7 +313,7 @@ contract ZizyCompetitionStaking is OwnableUpgradeable {
      * Emits a CoolingOffSettingsUpdated event with the new settings.
      */
     function updateCoolingOffSettings(uint8 percentage_, uint8 coolingDay_, uint8 coolestDay_) external onlyOwner {
-        require(percentage_ >= 0 && percentage_ <= 100, "Percentage should be in 0-100 range");
+        require(percentage_ <= 15, "Percentage should be in 0-20 range");
         coolingPercentage = percentage_;
         coolingDelay = (uint256(coolingDay_) * 24 * 60 * 60);
         coolestDelay = (uint256(coolestDay_) * 24 * 60 * 60);
@@ -282,7 +367,7 @@ contract ZizyCompetitionStaking is OwnableUpgradeable {
      */
     function getPeriodSnapshotRange(uint256 periodId) external view returns (uint, uint) {
         Period memory period = periods[periodId];
-        require(period._exist == true, "Period does not exist");
+        require(period._exist, "Period does not exist");
 
         uint min = period.firstSnapshotId;
         uint max = (period.lastSnapshotId == 0 ? snapshotId : period.lastSnapshotId);
@@ -343,7 +428,7 @@ contract ZizyCompetitionStaking is OwnableUpgradeable {
         uint256 periodId = currentPeriod;
         (, , , , , , bool exist) = _getPeriod(periodId);
 
-        require(exist == true, "No active period exist");
+        require(exist, "No active period exist");
 
         _snapshot();
     }
@@ -363,7 +448,7 @@ contract ZizyCompetitionStaking is OwnableUpgradeable {
         uint256 currentSnapshot = snapshotId;
         currentPeriod = period;
 
-        if (periods[prevPeriod]._exist == true) {
+        if (periods[prevPeriod]._exist) {
             // Set last snapshot of previous period
             periods[prevPeriod].lastSnapshotId = currentSnapshot;
             periods[prevPeriod].isOver = true;
@@ -387,6 +472,7 @@ contract ZizyCompetitionStaking is OwnableUpgradeable {
     function setCompetitionFactory(address competitionFactory_) external onlyOwner {
         require(address(competitionFactory_) != address(0), "Competition factory address can not be zero");
         competitionFactory = competitionFactory_;
+        emit CompFactoryUpdated(competitionFactory_);
     }
 
     /**
@@ -398,7 +484,7 @@ contract ZizyCompetitionStaking is OwnableUpgradeable {
      * It updates the stake fee percentage to the specified value and emits the StakeFeePercentageUpdated event.
      */
     function setStakeFeePercentage(uint8 stakeFeePercentage_) external onlyOwner {
-        require(stakeFeePercentage_ >= 0 && stakeFeePercentage_ < 100, "Fee percentage is not within limits");
+        require(stakeFeePercentage_ <= 5, "Fee percentage is not within limits");
         stakeFeePercentage = stakeFeePercentage_;
         emit StakeFeePercentageUpdated(stakeFeePercentage_);
     }
@@ -414,6 +500,7 @@ contract ZizyCompetitionStaking is OwnableUpgradeable {
     function setFeeAddress(address feeAddress_) external onlyOwner {
         require(feeAddress_ != address(0), "Fee address can not be zero");
         feeAddress = feeAddress_;
+        emit FeeReceiverUpdated(feeAddress_);
     }
 
     /**
@@ -433,7 +520,7 @@ contract ZizyCompetitionStaking is OwnableUpgradeable {
 
         // Update current snapshot balance
         currentSnapshot.balance = currentBalance;
-        if (currentSnapshot._exist == false) {
+        if (!currentSnapshot._exist) {
             currentSnapshot.prevSnapshotBalance = previousBalance;
             currentSnapshot._exist = true;
         }
@@ -441,7 +528,7 @@ contract ZizyCompetitionStaking is OwnableUpgradeable {
         // Update account details
         details.lastSnapshotId = currentSnapshotId;
         details.lastActivityBalance = currentBalance;
-        if (details._exist == false) {
+        if (!details._exist) {
             details._exist = true;
         }
     }
@@ -460,12 +547,11 @@ contract ZizyCompetitionStaking is OwnableUpgradeable {
      * Account details are updated, and a Stake event is emitted.
      */
     function stake(uint256 amount_) external whenPeriodExist whenFeeAddressExist {
+        require(amount_ > 0, "Incorrect stake amount");
         IERC20Upgradeable token = stakeToken;
         uint256 currentBalance = balanceOf(_msgSender());
         uint256 currentSnapshot = snapshotId;
         uint256 periodId = currentPeriod;
-        require(amount_ <= token.balanceOf(_msgSender()), "Insufficient balance");
-        require(amount_ <= token.allowance(_msgSender(), address(this)), "Insufficient allowance amount for stake");
 
         // Transfer tokens from callee to contract
         token.safeTransferFrom(_msgSender(), address(this), amount_);
@@ -564,6 +650,7 @@ contract ZizyCompetitionStaking is OwnableUpgradeable {
      * It emits the UnStake event.
      */
     function unStake(uint256 amount_) external whenFeeAddressExist {
+        require(!isTimeLocked(_msgSender()), "Time lock active");
         uint256 currentBalance = balanceOf(_msgSender());
         uint256 currentSnapshot = snapshotId;
         uint256 periodId = currentPeriod;
@@ -572,7 +659,7 @@ contract ZizyCompetitionStaking is OwnableUpgradeable {
 
         IERC20Upgradeable token = stakeToken;
 
-        balances[_msgSender()] = balances[_msgSender()].sub(amount_);
+        balances[_msgSender()] = balances[_msgSender()] - amount_;
         (uint fee, uint free) = calculateUnStakeAmounts(amount_);
 
         // Update account details
@@ -654,7 +741,7 @@ contract ZizyCompetitionStaking is OwnableUpgradeable {
      * any missing snapshot data. If there are missing snapshots, it scans for any stake activity beyond the max snapshot
      * to fill in the missing data. If no stake activity is found, the average is calculated based on the current balance.
      */
-    function getSnapshotAverage(address account, uint256 min, uint256 max) public view returns (uint) {
+    function getSnapshotAverage(address account, uint256 min, uint256 max) external view returns (uint) {
         uint currentSnapshot = snapshotId;
 
         require(min <= max, "Max should be equal or higher than max");
@@ -676,9 +763,9 @@ contract ZizyCompetitionStaking is OwnableUpgradeable {
         for (uint i = min; i <= max; ++i) {
             Snapshot memory shot = snapshots[account][i];
 
-            if (shot._exist == false) {
+            if (!shot._exist) {
                 // Snapshot data does not exist
-                if (shift == false) {
+                if (!shift) {
                     unknownCounter++;
                 } else {
                     stakeSum += (unknownCounter + 1) * lastBalance;
@@ -695,7 +782,7 @@ contract ZizyCompetitionStaking is OwnableUpgradeable {
             // Scan any stake activity from max to currentSnapshotId
             for (uint i = (max + 1); i <= currentSnapshot; ++i) {
                 Snapshot memory shot = snapshots[account][i];
-                if (shot._exist == true) {
+                if (shot._exist) {
                     stakeSum += (unknownCounter * shot.prevSnapshotBalance);
                     unknownCounter = 0;
                     break;
@@ -733,7 +820,7 @@ contract ZizyCompetitionStaking is OwnableUpgradeable {
         PeriodStakeAverage memory avg = averages[account][periodId];
 
         // Return if current period average isn't calculated
-        if (avg._calculated == false) {
+        if (!avg._calculated) {
             return (0, false);
         }
 
@@ -764,11 +851,11 @@ contract ZizyCompetitionStaking is OwnableUpgradeable {
      * It updates the balances and existence flags of the snapshots, and calculates the total stake amount.
      * Finally, it calculates the average stake amount and stores it in the averages mapping for the caller's account and period.
      */
-    function calculatePeriodStakeAverage() public whenPeriodExist whenCurrentPeriodInBuyStage {
+    function calculatePeriodStakeAverage() external whenPeriodExist whenCurrentPeriodInBuyStage {
         uint256 periodId = currentPeriod;
         (, bool calculated) = _getPeriodStakeAverage(_msgSender(), periodId);
 
-        require(calculated == false, "Already calculated");
+        require(!calculated, "Already calculated");
 
         uint256 total = 0;
 
@@ -786,7 +873,7 @@ contract ZizyCompetitionStaking is OwnableUpgradeable {
             // Update snapshot balance
             if (i == lastSnapshot) {
                 shotBalance = balances[_msgSender()];
-            } else if (shot._exist == true) {
+            } else if (shot._exist) {
                 shotBalance = shot.balance;
                 nextIB = shot.prevSnapshotBalance;
                 shift = true;
@@ -805,6 +892,8 @@ contract ZizyCompetitionStaking is OwnableUpgradeable {
             snapshots[_msgSender()][i] = shot;
         }
 
-        averages[_msgSender()][periodId] = PeriodStakeAverage((total / (lastSnapshot - firstSnapshot + 1)), true);
+        uint average = (total / (lastSnapshot - firstSnapshot + 1));
+        averages[_msgSender()][periodId] = PeriodStakeAverage(average, true);
+        emit PeriodStakeAverageCalculated(_msgSender(), periodId, average);
     }
 }

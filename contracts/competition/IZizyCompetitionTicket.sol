@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity ^0.8.9;
+pragma solidity ^0.8.17;
 
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import "@openzeppelin/contracts/token/ERC721/extensions/IERC721Enumerable.sol";
@@ -40,4 +40,9 @@ interface IZizyCompetitionTicket is IERC721, IERC721Enumerable {
      * @notice Unpauses the minting and transferring of ticket tokens.
      */
     function unpause() external;
+
+    /**
+     * @dev Returns true if the contract is paused, and false otherwise.
+     */
+    function paused() external view returns (bool);
 }

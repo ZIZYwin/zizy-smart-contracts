@@ -1,16 +1,17 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity ^0.8.9;
+pragma solidity ^0.8.17;
 
 import "./../utils/DepositWithdraw.sol";
 import "./IZizyCompetitionStaking.sol";
+import "@openzeppelin/contracts-upgradeable/token/ERC721/extensions/IERC721EnumerableUpgradeable.sol";
 
 /**
  * @title Stake Rewards Contract
  * @notice This contract manages the distribution of rewards to stakers based on vesting periods. It inherits from the DepositWithdraw contract
  */
 contract StakeRewards is DepositWithdraw {
-    uint constant MAX_UINT = (2 ** 256) - 1;
+    uint internal constant MAX_UINT = (2 ** 256) - 1;
 
     /**
      * @notice This event is emitted when a vesting reward is created for an account.
@@ -71,10 +72,39 @@ contract StakeRewards is DepositWithdraw {
     event RewardConfigUpdated(uint rewardId, bool vestingEnabled, uint snapshotMin, uint snapshotMax, uint vestingDayInterval);
 
     /**
-     * @notice This event is emitted when a reward is cleared.
-     * @param rewardId The ID of the reward.
+     * @notice This event is emitted when a booster is set or updated.
+     * @param boosterId The ID of the booster.
+     * @param boosterType The type of the booster (StakingBalance or HoldingPOPA).
+     * @param contractAddress The address of the contract associated with the booster.
+     * @param amount The amount or condition associated with the booster (e.g., stake balance amount).
+     * @param boostPercentage The boost percentage offered by the booster.
+     * @param isNew A flag indicating whether the booster is a new addition or updated.
      */
-    event RewardClear(uint rewardId);
+    event SetBooster(uint16 boosterId, BoosterType boosterType, address contractAddress, uint amount, uint boostPercentage, bool isNew);
+
+    /**
+     * @notice This event is emitted when the staking contract address is updated.
+     * @param stakingContract The new address of the staking contract.
+     */
+    event StakingContractUpdate(address stakingContract);
+
+    /**
+     * @notice This event is emitted when the reward definer contract address is updated.
+     * @param rewardDefiner The new address of the reward definer contract.
+     */
+    event RewardDefinerUpdate(address rewardDefiner);
+
+    /**
+     * @notice This event is emitted when the reward tiers are updated for a specific reward.
+     * @param rewardId The ID of the reward for which the tiers are updated.
+     */
+    event RewardTiersUpdate(uint rewardId);
+
+    /**
+     * @notice This event is emitted when a booster is removed.
+     * @param boosterId The ID of the removed booster.
+     */
+    event BoosterRemoved(uint16 boosterId);
 
     /// @notice Enum for reward types
     enum RewardType {
@@ -85,8 +115,7 @@ contract StakeRewards is DepositWithdraw {
 
     /// @notice Enum for reward booster types
     enum BoosterType {
-        HoldingNFT,
-        ERC20Balance,
+        HoldingPOPA,
         StakingBalance
     }
 
@@ -94,7 +123,7 @@ contract StakeRewards is DepositWithdraw {
     struct Booster {
         BoosterType boosterType;
         address contractAddress; // Booster target contract
-        uint amount; // Only for ERC20Balance & StakeBalance boosters
+        uint amount; // Only for StakeBalance boosters
         uint boostPercentage; // Boost percentage
         bool _exist;
     }
@@ -183,8 +212,11 @@ contract StakeRewards is DepositWithdraw {
     /// @dev Reward claim state for rewardId [Using for clear rewards] [rewardId > bool]
     mapping(uint => bool) private _isRewardClaimed;
 
+    /// @dev Booster POPA NFT use state for increase reward ratio by given percentage [keccak(rewardId, popaContract, popaId) > vestingIndex > useState]
+    mapping(bytes32 => mapping(uint => bool)) private _isBoosterPopaUsed;
+
     /// @dev Staking contract
-    IZizyCompetitionStaking private stakingContract;
+    IZizyCompetitionStaking public stakingContract;
 
     /**
      * @dev Modifier that allows only the reward definer to execute a function.
@@ -203,6 +235,14 @@ contract StakeRewards is DepositWithdraw {
     }
 
     /**
+     * @dev Constructor function
+     * @custom:oz-upgrades-unsafe-allow constructor
+     */
+    constructor() {
+        _disableInitializers();
+    }
+
+    /**
      * @notice Initializes the StakeRewards contract.
      * @param stakingContract_ The address of the staking contract.
      * @param rewardDefiner_ The address of the reward definer.
@@ -211,6 +251,8 @@ contract StakeRewards is DepositWithdraw {
      */
     function initialize(address stakingContract_, address rewardDefiner_) external initializer {
         __Ownable_init();
+        __ReentrancyGuard_init();
+        __ERC721Holder_init();
 
         setStakingContract(stakingContract_);
         setRewardDefiner(rewardDefiner_);
@@ -269,8 +311,8 @@ contract StakeRewards is DepositWithdraw {
      *
      * @dev This function returns the index of a booster by its ID. It reverts if the booster does not exist.
      */
-    function getBoosterIndex(uint16 boosterId_) public view returns (uint) {
-        require(_boosters[boosterId_]._exist == true, "Booster is not exist");
+    function getBoosterIndex(uint16 boosterId_) external view returns (uint) {
+        require(_boosters[boosterId_]._exist, "Booster is not exist");
         uint boosterCount = getBoosterCount();
         uint16[] memory ids = _boosterIds;
 
@@ -295,35 +337,37 @@ contract StakeRewards is DepositWithdraw {
     /**
      * @notice Sets or updates a booster.
      * @param boosterId_ The ID of the booster.
-     * @param type_ The type of the booster (HoldingNFT, ERC20Balance, StakingBalance).
-     * @param contractAddress_ The address of the contract (for ERC20Balance and HoldingNFT boosters).
-     * @param amount_ The amount required for the booster (for ERC20Balance and StakingBalance boosters).
+     * @param type_ The type of the booster (HoldingPOPA, StakingBalance).
+     * @param contractAddress_ The address of the contract (for HoldingPOPA boosters).
+     * @param amount_ The amount required for the booster (for StakingBalance boosters).
      * @param boostPercentage_ The boost percentage for the booster.
      *
      * @dev This function sets or updates a booster with the given parameters. It validates the inputs based on the booster type.
      *      If the booster ID doesn't exist, it adds the booster ID to the list of booster IDs.
      */
-    function setBooster(uint16 boosterId_, BoosterType type_, address contractAddress_, uint amount_, uint boostPercentage_) public onlyRewardDefiner {
+    function setBooster(uint16 boosterId_, BoosterType type_, address contractAddress_, uint amount_, uint boostPercentage_) external onlyRewardDefiner {
         // Validate
-        if (type_ == BoosterType.ERC20Balance || type_ == BoosterType.StakingBalance) {
+        if (type_ == BoosterType.StakingBalance) {
             require(amount_ > 0, "Amount should be higher than zero");
         }
-        if (type_ == BoosterType.ERC20Balance || type_ == BoosterType.HoldingNFT) {
+        if (type_ == BoosterType.HoldingPOPA) {
             require(contractAddress_ != address(0), "Contract address cant be zero address");
         }
 
         // Format
-        if (type_ == BoosterType.HoldingNFT) {
+        if (type_ == BoosterType.HoldingPOPA) {
             amount_ = 0;
         } else if (type_ == BoosterType.StakingBalance) {
             contractAddress_ = address(0);
         }
 
-        if (_boosters[boosterId_]._exist == false) {
+        bool isExist = _boosters[boosterId_]._exist;
+        if (!isExist) {
             _boosterIds.push(boosterId_);
         }
 
         _boosters[boosterId_] = Booster(type_, contractAddress_, amount_, boostPercentage_, true);
+        emit SetBooster(boosterId_, type_, contractAddress_, amount_, boostPercentage_, !isExist);
     }
 
     /**
@@ -333,9 +377,9 @@ contract StakeRewards is DepositWithdraw {
      * @dev This function removes the booster with the given ID. It checks if the booster exists and updates its values to default.
      *      It also removes the booster ID from the list of booster IDs.
      */
-    function removeBooster(uint16 boosterId_) public onlyRewardDefiner {
+    function removeBooster(uint16 boosterId_) external onlyRewardDefiner {
         Booster memory booster = getBooster(boosterId_);
-        require(booster._exist == true, "Booster does not exist");
+        require(booster._exist, "Booster does not exist");
 
         uint boosterCount = getBoosterCount();
 
@@ -350,6 +394,7 @@ contract StakeRewards is DepositWithdraw {
                 _boosterIds[i] = _boosterIds[boosterCount - 1];
                 _boosterIds.pop();
                 _boosters[boosterId_] = booster;
+                emit BoosterRemoved(boosterId_);
                 break;
             }
         }
@@ -358,15 +403,16 @@ contract StakeRewards is DepositWithdraw {
     /**
      * @notice Get the account's reward booster percentage.
      * @param account_ The address of the account.
+     * @param rewardId_ Reward id
+     * @param vestingIndex_ Vesting index
      * @return The total boost percentage for the account based on the defined boosters.
      *
      * @dev This function calculates the total boost percentage for the given account by iterating through the boosters.
      *      It checks if each booster exists and applies the corresponding boost percentage based on the booster type.
      *      - For BoosterType.StakingBalance: If the staking balance is higher than the specified amount, the boost percentage is added.
-     *      - For BoosterType.ERC20Balance: If the ERC20 balance is higher than the specified amount, the boost percentage is added.
-     *      - For BoosterType.HoldingNFT: If the account holds at least one NFT of the specified contract, the boost percentage is added.
+     *      - For BoosterType.HoldingPOPA: If the account holds at least one POPA of the specified contract, the boost percentage is added.
      */
-    function getAccountBoostPercentage(address account_) public view returns (uint) {
+    function getAccountBoostPercentage(address account_, uint rewardId_, uint vestingIndex_) public view returns (uint) {
         uint percentage = 0;
         uint boosterCount = getBoosterCount();
         uint16[] memory ids = _boosterIds;
@@ -374,7 +420,7 @@ contract StakeRewards is DepositWithdraw {
         for (uint i = 0; i < boosterCount; i++) {
             uint16 boosterId = ids[i];
             Booster memory booster = _boosters[boosterId];
-            if (booster._exist == false) {
+            if (!booster._exist) {
                 continue;
             }
 
@@ -383,20 +429,66 @@ contract StakeRewards is DepositWithdraw {
                 if (stakingContract.balanceOf(account_) >= booster.amount) {
                     percentage += booster.boostPercentage;
                 }
-            } else if (booster.boosterType == BoosterType.ERC20Balance) {
-                // Add additional boost percentage if erc20 balance is higher than given balance condition
-                if (IERC20Upgradeable(booster.contractAddress).balanceOf(account_) >= booster.amount) {
-                    percentage += booster.boostPercentage;
-                }
-            } else if (booster.boosterType == BoosterType.HoldingNFT) {
-                // Add additional boost percentage if account is given NFT holder
-                if (IERC721Upgradeable(booster.contractAddress).balanceOf(account_) >= 1) {
-                    percentage += booster.boostPercentage;
+            } else if (booster.boosterType == BoosterType.HoldingPOPA) {
+                // Add additional boost percentage if account is given POPA holder
+                IERC721EnumerableUpgradeable popaNFT = IERC721EnumerableUpgradeable(booster.contractAddress);
+
+                if (popaNFT.balanceOf(account_) >= 1) {
+                    // Every account can claim single popa
+                    uint popaID = popaNFT.tokenOfOwnerByIndex(account_, 0);
+                    // [keccak(rewardId, popaContract, popaId) > vestingIndex > useState]
+                    bytes32 popaKey = keccak256(abi.encode(rewardId_, booster.contractAddress, popaID));
+                    bool isPopaUsed = _isBoosterPopaUsed[popaKey][vestingIndex_];
+                    if (!isPopaUsed) {
+                        percentage += booster.boostPercentage;
+                    }
                 }
             }
         }
 
         return percentage;
+    }
+
+    /**
+     * @notice Internal function to apply boosters to the given account for a specific reward.
+     * @param account_ The address of the account to apply the boosters.
+     * @param rewardId_ The ID of the specific reward to apply the boosters.
+     * @param rewardId_ Vesting index for apply booster use states
+     */
+    function _applyBoosters(address account_, uint rewardId_, uint vestingIndex_) internal {
+        uint boosterCount = getBoosterCount();
+        uint16[] memory ids = _boosterIds;
+
+        for (uint i = 0; i < boosterCount; i++) {
+            uint16 boosterId = ids[i];
+            Booster memory booster = _boosters[boosterId];
+            if (!booster._exist) {
+                continue;
+            }
+
+            if (booster.boosterType == BoosterType.StakingBalance) {
+                // Stake amount check for apply time-lock
+                if (stakingContract.balanceOf(account_) >= booster.amount) {
+                    // Set 2 minute time lock for account
+                    stakingContract.setTimeLock(account_, 120);
+                }
+            } else if (booster.boosterType == BoosterType.HoldingPOPA) {
+                // Popa holding check for set as used state
+                IERC721EnumerableUpgradeable popaNFT = IERC721EnumerableUpgradeable(booster.contractAddress);
+
+                if (popaNFT.balanceOf(account_) >= 1) {
+                    // Every account can claim single popa
+                    uint popaID = popaNFT.tokenOfOwnerByIndex(account_, 0);
+                    // [keccak(rewardId, popaContract, popaId) > vestingIndex > useState]
+                    bytes32 popaKey = keccak256(abi.encode(rewardId_, booster.contractAddress, popaID));
+                    bool isPopaUsed = _isBoosterPopaUsed[popaKey][vestingIndex_];
+                    if (!isPopaUsed) {
+                        // Set popa used as a booster for specific reward. Every popa can be used one-time per reward
+                        _isBoosterPopaUsed[popaKey][vestingIndex_] = true;
+                    }
+                }
+            }
+        }
     }
 
     /**
@@ -409,7 +501,7 @@ contract StakeRewards is DepositWithdraw {
      * @dev This function retrieves the average calculation for the given account and snapshot range from the cache.
      *      It returns the average calculation stored in the cache as a CacheAverage struct.
      */
-    function getSnapshotsAverageCalculation(address account_, uint min_, uint max_) public view returns (CacheAverage memory) {
+    function getSnapshotsAverageCalculation(address account_, uint min_, uint max_) external view returns (CacheAverage memory) {
         return _getAccountSnapshotsAverage(account_, min_, max_);
     }
 
@@ -423,6 +515,7 @@ contract StakeRewards is DepositWithdraw {
     function setStakingContract(address contract_) public onlyOwner {
         require(contract_ != address(0), "Contract address cant be zero address");
         stakingContract = IZizyCompetitionStaking(contract_);
+        emit StakingContractUpdate(contract_);
     }
 
     /**
@@ -435,6 +528,7 @@ contract StakeRewards is DepositWithdraw {
     function setRewardDefiner(address rewardDefiner_) public onlyOwner {
         require(rewardDefiner_ != address(0), "Reward definer address cant be zero address");
         rewardDefiner = rewardDefiner_;
+        emit RewardDefinerUpdate(rewardDefiner_);
     }
 
     /**
@@ -505,13 +599,13 @@ contract StakeRewards is DepositWithdraw {
      * The snapshot ranges must be within the valid range of snapshot IDs.
      * Once the configuration is updated, the 'RewardConfigUpdated' event is emitted.
      */
-    function setRewardConfig(uint rewardId_, bool vestingEnabled_, uint vestingStartDate_, uint vestingDayInterval_, uint vestingPeriodCount_, uint snapshotMin_, uint snapshotMax_) public onlyRewardDefiner stakingContractIsSet {
+    function setRewardConfig(uint rewardId_, bool vestingEnabled_, uint vestingStartDate_, uint vestingDayInterval_, uint vestingPeriodCount_, uint snapshotMin_, uint snapshotMax_) external onlyRewardDefiner stakingContractIsSet {
         RewardConfig memory config = rewardConfig[rewardId_];
-        require(_isRewardClaimed[rewardId_] == false, "This rewardId has claimed reward. Cant update");
+        require(!_isRewardClaimed[rewardId_], "This rewardId has claimed reward. Cant update");
 
         uint currentSnapshot = stakingContract.getSnapshotId();
 
-        require(snapshotMin_ < currentSnapshot && snapshotMax_ < currentSnapshot, "Snapshot ranges is not correct");
+        require(snapshotMin_ < currentSnapshot && snapshotMax_ < currentSnapshot && snapshotMin_ <= snapshotMax_, "Snapshot ranges is not correct");
 
         // Check vesting day
         if (vestingEnabled_) {
@@ -521,9 +615,9 @@ contract StakeRewards is DepositWithdraw {
         }
 
         config.vestingEnabled = vestingEnabled_;
-        config.vestingInterval = (vestingEnabled_ == true ? (vestingDayInterval_ * (1 days)) : 0);
-        config.vestingPeriodCount = (vestingEnabled_ == true ? vestingPeriodCount_ : 1);
-        config.vestingStartDate = (vestingEnabled_ == true ? vestingStartDate_ : 0);
+        config.vestingInterval = (vestingEnabled_ ? (vestingDayInterval_ * (1 days)) : 0);
+        config.vestingPeriodCount = (vestingEnabled_ ? vestingPeriodCount_ : 1);
+        config.vestingStartDate = (vestingEnabled_ ? vestingStartDate_ : 0);
         config.snapshotMin = snapshotMin_;
         config.snapshotMax = snapshotMax_;
         config._exist = true;
@@ -556,7 +650,7 @@ contract StakeRewards is DepositWithdraw {
      * @dev This function retrieves the reward tier at the specified index from the reward tiers array
      * associated with the given reward ID.
      */
-    function getRewardTier(uint rewardId_, uint index_) public view returns (RewardTier memory) {
+    function getRewardTier(uint rewardId_, uint index_) external view returns (RewardTier memory) {
         uint tierLength = getRewardTierCount(rewardId_);
         require(index_ < tierLength, "Tier index out of boundaries");
 
@@ -574,8 +668,8 @@ contract StakeRewards is DepositWithdraw {
      * The tier length must be greater than 1, and each tier's stake minimum must be greater than the maximum
      * of the previous tier to avoid range collisions.
      */
-    function setRewardTiers(uint rewardId_, RewardTier[] calldata tiers_) public onlyRewardDefiner {
-        require(_isRewardClaimed[rewardId_] == false, "This rewardId has claimed reward. Cant update");
+    function setRewardTiers(uint rewardId_, RewardTier[] calldata tiers_) external onlyRewardDefiner {
+        require(!_isRewardClaimed[rewardId_], "This rewardId has claimed reward. Cant update");
 
         uint tierLength = tiers_.length;
         require(tierLength > 1, "Tier length should be higher than 1");
@@ -591,7 +685,11 @@ contract StakeRewards is DepositWithdraw {
             bool isFirst = (i == 0);
             bool isLast = (i == (tierLength - 1));
 
+            // Set current tier min/max ranges
+            tier_.stakeMin = (isFirst ? tier_.stakeMin : (prevMax + 1));
             tier_.stakeMax = (isLast ? (MAX_UINT) : tier_.stakeMax);
+
+            require(tier_.stakeMin < tier_.stakeMax, "Tier min should be lower than max");
 
             if (!isFirst) {
                 require(tier_.stakeMin > prevMax, "Range collision");
@@ -600,6 +698,8 @@ contract StakeRewards is DepositWithdraw {
 
             prevMax = tier_.stakeMax;
         }
+
+        emit RewardTiersUpdate(rewardId_);
     }
 
     /**
@@ -617,12 +717,12 @@ contract StakeRewards is DepositWithdraw {
      * After updating the reward, it emits the `RewardUpdated` event.
      */
     function _setReward(uint rewardId_, uint chainId_, RewardType rewardType_, address contractAddress_, uint amount_, uint percentage_) internal {
-        require(_isRewardClaimed[rewardId_] == false, "This rewardId has claimed reward. Cant update");
+        require(!_isRewardClaimed[rewardId_], "This rewardId has claimed reward. Cant update");
         Reward memory currentReward = _rewards[rewardId_];
         Reward memory reward = Reward(chainId_, rewardType_, contractAddress_, amount_, 0, percentage_, false);
-        require(_validateReward(reward) == true, "Reward data is not correct");
+        require(_validateReward(reward), "Reward data is not correct");
 
-        if (currentReward._exist == true && _isRewardClaimed[rewardId_] == true) {
+        if (currentReward._exist && _isRewardClaimed[rewardId_]) {
             revert("Cant set/update claimed reward");
         }
 
@@ -641,7 +741,7 @@ contract StakeRewards is DepositWithdraw {
      * @dev This function sets a native reward with the provided details by calling the internal
      * `_setReward` function with the reward type set to `RewardType.Native` and the contract address set to zero address.
      */
-    function setNativeReward(uint rewardId_, uint chainId_, uint amount_) public onlyRewardDefiner {
+    function setNativeReward(uint rewardId_, uint chainId_, uint amount_) external onlyRewardDefiner {
         _setReward(rewardId_, chainId_, RewardType.Native, address(0), amount_, 0);
     }
 
@@ -656,7 +756,7 @@ contract StakeRewards is DepositWithdraw {
      * @dev This function sets a token reward with the provided details by calling the internal
      * `_setReward` function with the reward type set to `RewardType.Token`.
      */
-    function setTokenReward(uint rewardId_, uint chainId_, address contractAddress_, uint amount_) public onlyRewardDefiner {
+    function setTokenReward(uint rewardId_, uint chainId_, address contractAddress_, uint amount_) external onlyRewardDefiner {
         _setReward(rewardId_, chainId_, RewardType.Token, contractAddress_, amount_, 0);
     }
 
@@ -672,7 +772,7 @@ contract StakeRewards is DepositWithdraw {
      * `_setReward` function with the reward type set to `RewardType.ZizyStakingPercentage`.
      * The chain ID is obtained using the `chainId()` function.
      */
-    function setZizyStakePercentageReward(uint rewardId_, address contractAddress_, uint amount_, uint percentage_) public onlyRewardDefiner {
+    function setZizyStakePercentageReward(uint rewardId_, address contractAddress_, uint amount_, uint percentage_) external onlyRewardDefiner {
         _setReward(rewardId_, chainId(), RewardType.ZizyStakingPercentage, contractAddress_, amount_, percentage_);
     }
 
@@ -694,7 +794,7 @@ contract StakeRewards is DepositWithdraw {
      * @param index_ The index of the account reward.
      * @return The account reward details.
      */
-    function getAccountReward(address account_, uint rewardId_, uint index_) public view returns (AccountReward memory) {
+    function getAccountReward(address account_, uint rewardId_, uint index_) external view returns (AccountReward memory) {
         return _accountRewards[rewardId_][account_][index_];
     }
 
@@ -710,7 +810,7 @@ contract StakeRewards is DepositWithdraw {
      */
     function _claimReward(address account_, uint rewardId_, uint vestingIndex_) internal {
         AccountReward memory reward = _accountRewards[rewardId_][account_][vestingIndex_];
-        require(isRewardClaimable(account_, rewardId_, vestingIndex_) == true, "Reward isnt claimable");
+        require(isRewardClaimable(account_, rewardId_, vestingIndex_), "Reward isnt claimable");
 
         // Set claim state first [Reentrancy ? :)]
         _accountRewards[rewardId_][account_][vestingIndex_].isClaimed = true;
@@ -718,7 +818,7 @@ contract StakeRewards is DepositWithdraw {
         // Disable reward & reward config update
         _isRewardClaimed[rewardId_] = true;
 
-        uint boosterPercentage = getAccountBoostPercentage(account_);
+        uint boosterPercentage = getAccountBoostPercentage(account_, rewardId_, vestingIndex_);
         uint boostedAmount = (reward.amount * (100 + boosterPercentage)) / 100;
 
         Reward memory baseReward = getReward(rewardId_);
@@ -726,6 +826,9 @@ contract StakeRewards is DepositWithdraw {
 
         // Update total distributed amount of base reward
         _rewards[rewardId_].totalDistributed += boostedAmount;
+
+        // Apply boosters
+        _applyBoosters(account_, rewardId_, vestingIndex_);
 
         if (reward.chainId == chainId()) {
             if (reward.rewardType == RewardType.Native) {
@@ -750,7 +853,7 @@ contract StakeRewards is DepositWithdraw {
      */
     function isRewardClaimable(address account_, uint rewardId_, uint vestingIndex_) public view returns (bool) {
         // Check reward configs
-        if (isRewardConfigsCompleted(rewardId_) == false) {
+        if (!isRewardConfigsCompleted(rewardId_)) {
             return false;
         }
 
@@ -760,8 +863,8 @@ contract StakeRewards is DepositWithdraw {
         (AccBaseReward memory baseReward, ,) = getAccountRewardDetails(account_, rewardId_, config.snapshotMin, config.snapshotMax);
         uint ts = block.timestamp;
 
-        if (_isVestingPeriodsPrepared(account_, rewardId_) == true) {
-            if (reward._exist == false || reward.isClaimed == true) {
+        if (_isVestingPeriodsPrepared(account_, rewardId_)) {
+            if (!reward._exist || reward.isClaimed) {
                 return false;
             }
         } else {
@@ -817,7 +920,7 @@ contract StakeRewards is DepositWithdraw {
      */
     function _getAccountSnapshotsAverage(address account_, uint snapshotMin_, uint snapshotMax_) internal view returns (CacheAverage memory) {
         CacheAverage memory accAverage = _accountAverageCache[account_][_cacheKey(snapshotMin_, snapshotMax_)];
-        if (accAverage._exist == false) {
+        if (!accAverage._exist) {
             accAverage.average = stakingContract.getSnapshotAverage(account_, snapshotMin_, snapshotMax_);
         }
         return accAverage;
@@ -877,7 +980,7 @@ contract StakeRewards is DepositWithdraw {
      */
     function _prepareRewardVestingPeriods(address account_, uint rewardId_) internal {
         // Check prepared before for gas cost
-        if (_isVestingPeriodsPrepared(account_, rewardId_) == true) {
+        if (_isVestingPeriodsPrepared(account_, rewardId_)) {
             return;
         }
 
@@ -887,12 +990,12 @@ contract StakeRewards is DepositWithdraw {
         (AccBaseReward memory baseReward, CacheAverage memory accAverage,) = getAccountRewardDetails(account_, rewardId_, config.snapshotMin, config.snapshotMax);
 
         // Write account average in cache if not exist
-        if (accAverage._exist == false) {
+        if (!accAverage._exist) {
             _setAverageCalculation(account_, config.snapshotMin, config.snapshotMax, accAverage.average);
         }
 
         // Write account base reward in state variable if not exist
-        if (baseReward._exist == false) {
+        if (!baseReward._exist) {
             baseReward._exist = true;
             _accountBaseReward[account_][rewardId_] = baseReward;
         }

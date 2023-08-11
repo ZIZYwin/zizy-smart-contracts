@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity ^0.8.9;
+pragma solidity ^0.8.17;
 
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
@@ -85,6 +85,21 @@ contract ZizyRewardsHub is OwnableUpgradeable, ReentrancyGuardUpgradeable, ERC72
      */
     event CompRewardClaimedOnDiffChain(uint256 periodId, uint256 competitionId, RewardType rewardType, address rewardAddress, address receiver, uint chainId, uint amount, uint tokenId);
 
+    /**
+     * @notice Event emitted when a competition reward is claimed on a different chain.
+     * @param withdrawType The type of the reward (Token, NFT, Native).
+     * @param assetAddress The contract address of withdrawed asset (Token, NFT)
+     * @param amount Withdraw amount (Token, Native)
+     * @param tokenId ID of reward (NFT)
+     */
+    event RewardWithdraw(RewardType withdrawType, address assetAddress, uint amount, uint tokenId);
+
+    /**
+     * @notice Event emitted when reward definer updated
+     * @param account Reward definer address
+     */
+    event SetRewardDefiner(address account);
+
     /// @notice Enum for reward types
     enum RewardType {
         Token,
@@ -128,6 +143,14 @@ contract ZizyRewardsHub is OwnableUpgradeable, ReentrancyGuardUpgradeable, ERC72
     }
 
     /**
+     * @dev Constructor function
+     * @custom:oz-upgrades-unsafe-allow constructor
+     */
+    constructor() {
+        _disableInitializers();
+    }
+
+    /**
      * @notice Initializes the smart contract
      * @param rewardDefiner_ The address of the reward definer.
      */
@@ -147,9 +170,9 @@ contract ZizyRewardsHub is OwnableUpgradeable, ReentrancyGuardUpgradeable, ERC72
     }
 
     /**
-     * @notice Allows anyone to deposit native coin on the contract
+     * @notice Allows deposit native coin on the contract. Native coins are used to distibute rewards
      */
-    function deposit() public payable {
+    function deposit() external payable onlyOwner {
     }
 
     /**
@@ -165,6 +188,7 @@ contract ZizyRewardsHub is OwnableUpgradeable, ReentrancyGuardUpgradeable, ERC72
         require(address(this).balance >= amount, "Insufficient native balance");
         (bool sent,) = to_.call{value : amount}("");
         require(sent, "Native coin transfer failed");
+        emit RewardWithdraw(RewardType.Native, address(0), amount, 0);
     }
 
     /**
@@ -192,21 +216,6 @@ contract ZizyRewardsHub is OwnableUpgradeable, ReentrancyGuardUpgradeable, ERC72
     }
 
     /**
-     * @notice Allows the contract owner to deposit reward tokens to the contract.
-     * @param token_ The address of the token to deposit.
-     * @param amount The amount of tokens to deposit.
-     *
-     * @dev Note that the function checks if the contract owner is calling the function. Only the contract owner is allowed to deposit tokens.
-     * The function requires that the contract has sufficient allowance from the caller to transfer the specified amount of tokens.
-     * After confirming the allowance, the function uses the `safeTransferFrom` function of the token contract to transfer the tokens to the contract.
-     */
-    function depositToken(address token_, uint amount) external onlyOwner {
-        IERC20Upgradeable token = IERC20Upgradeable(token_);
-        require(token.allowance(_msgSender(), address(this)) >= amount, "Insufficient allowance");
-        token.safeTransferFrom(_msgSender(), address(this), amount);
-    }
-
-    /**
      * @notice Internal function to send ERC20 tokens
      * @param to_ The address of the recipient of the ERC20 token transfer. The recipient must be a valid address.
      * @param token_ The address of the ERC20 token to send.
@@ -218,8 +227,8 @@ contract ZizyRewardsHub is OwnableUpgradeable, ReentrancyGuardUpgradeable, ERC72
      */
     function _sendToken(address to_, address token_, uint amount) internal {
         IERC20Upgradeable token = IERC20Upgradeable(token_);
-        require(token.balanceOf(address(this)) >= amount, "Insufficient token balance");
         token.safeTransfer(to_, amount);
+        emit RewardWithdraw(RewardType.Token, token_, amount, 0);
     }
 
     /**
@@ -248,19 +257,6 @@ contract ZizyRewardsHub is OwnableUpgradeable, ReentrancyGuardUpgradeable, ERC72
     }
 
     /**
-     * @notice This function allows the contract owner to deposit NFT rewards to the contract.
-     * @param token_ The address of the NFT contract.
-     * @param tokenId_ The ID of the NFT to deposit.
-     *
-     * @dev Note that the function checks if the contract owner is calling the function. Only the contract owner is allowed to deposit NFT rewards.
-     * After confirming the ownership, the function uses the `safeTransferFrom` function of the NFT contract to transfer the NFT to the contract.
-     */
-    function depositNFT(address token_, uint tokenId_) external onlyOwner {
-        IERC721Upgradeable nft = IERC721Upgradeable(token_);
-        nft.safeTransferFrom(_msgSender(), address(this), tokenId_);
-    }
-
-    /**
      * @notice Internal function to send NFTs
      * @param to_ The address to send the NFT to. The address must be a valid address capable of receiving NFTs.
      * @param token_ The address of the NFT contract.
@@ -273,6 +269,7 @@ contract ZizyRewardsHub is OwnableUpgradeable, ReentrancyGuardUpgradeable, ERC72
         IERC721Upgradeable nft = IERC721Upgradeable(token_);
         require(nft.ownerOf(tokenId_) == address(this), "Rewards hub contract is not owner of this nft");
         nft.safeTransferFrom(address(this), to_, tokenId_);
+        emit RewardWithdraw(RewardType.NFT, token_, 0, tokenId_);
     }
 
     /**
@@ -309,7 +306,10 @@ contract ZizyRewardsHub is OwnableUpgradeable, ReentrancyGuardUpgradeable, ERC72
      */
     function _setRewardDefiner(address rewardDefiner_) internal {
         require(rewardDefiner_ != address(0), "Reward definer address can not be zero");
-        rewardDefiner = rewardDefiner_;
+        if (rewardDefiner != rewardDefiner_) {
+            rewardDefiner = rewardDefiner_;
+            emit SetRewardDefiner(rewardDefiner_);
+        }
     }
 
     /**
@@ -343,13 +343,13 @@ contract ZizyRewardsHub is OwnableUpgradeable, ReentrancyGuardUpgradeable, ERC72
      */
     function _setCompetitionReward(uint256 periodId, uint256 competitionId, address ticket_, uint256 ticketId_, uint chainId_, RewardType rewardType, address rewardAddress_, uint amount, uint tokenId) internal {
         Reward memory reward = _competitionRewards[ticket_][ticketId_];
-        require(reward.isClaimed == false, "Cant update claimed reward !");
+        require(!reward.isClaimed, "Cant update claimed reward !");
 
         if (rewardType == RewardType.Token || rewardType == RewardType.NFT) {
             require(rewardAddress_ != address(0), "Token or NFT reward must has contract address");
         }
 
-        if (reward._exist == true) {
+        if (reward._exist) {
             emit CompRewardUpdated(ticket_, ticketId_);
         } else {
             emit CompRewardDefined(ticket_, ticketId_);
@@ -544,8 +544,8 @@ contract ZizyRewardsHub is OwnableUpgradeable, ReentrancyGuardUpgradeable, ERC72
      */
     function claimCompetitionReward(address ticketContract_, uint ticketId_) external nonReentrant {
         Reward memory rew = _competitionRewards[ticketContract_][ticketId_];
-        require(rew._exist == true, "Reward does not exist");
-        require(rew.isClaimed == false, "Reward already claimed");
+        require(rew._exist, "Reward does not exist");
+        require(!rew.isClaimed, "Reward already claimed");
 
         IERC721Upgradeable ticket = IERC721Upgradeable(ticketContract_);
         require(ticket.ownerOf(ticketId_) == _msgSender(), "You are not owner of this ticket");
@@ -592,7 +592,6 @@ contract ZizyRewardsHub is OwnableUpgradeable, ReentrancyGuardUpgradeable, ERC72
      * @notice Fetches the count of airdrop rewards associated with the given receiver and airdrop ID
      * @param receiver_ The address of the receiver
      * @param airdropId_ The ID of the airdrop
-     * @return Returns the count of airdrop rewards for the given receiver and airdrop ID
      *
      * @dev This function fetches the count of airdrop rewards for the given receiver and airdrop ID from the
      * _airdropRewards mapping and returns it.
@@ -606,7 +605,6 @@ contract ZizyRewardsHub is OwnableUpgradeable, ReentrancyGuardUpgradeable, ERC72
      * @notice Fetches the count of unclaimed airdrop rewards associated with the given receiver and airdrop ID
      * @param receiver_ The address of the receiver
      * @param airdropId_ The ID of the airdrop
-     * @return Returns the count of unclaimed airdrop rewards for the given receiver and airdrop ID
      *
      * @dev This function fetches the total count of airdrop rewards for the given receiver and airdrop ID
      * from the _airdropRewards mapping and then counts the number of those rewards that are unclaimed.
@@ -618,7 +616,7 @@ contract ZizyRewardsHub is OwnableUpgradeable, ReentrancyGuardUpgradeable, ERC72
         uint unclaimedCounter = 0;
         for (uint i = 0; i < rewardCount; ++i) {
             Reward memory rew = _airdropRewards[receiver_][airdropId_][i];
-            if (rew.isClaimed == false && rew._exist == true) {
+            if (!rew.isClaimed && rew._exist) {
                 unclaimedCounter++;
             }
         }
@@ -639,7 +637,7 @@ contract ZizyRewardsHub is OwnableUpgradeable, ReentrancyGuardUpgradeable, ERC72
 
         for (uint i = 0; i < rewardCount; ++i) {
             Reward memory rew = _airdropRewards[_msgSender()][airdropId_][i];
-            if (rew.isClaimed == false && rew._exist == true) {
+            if (!rew.isClaimed && rew._exist) {
                 _claimAirdropReward(_msgSender(), airdropId_, i);
             }
         }
@@ -660,8 +658,8 @@ contract ZizyRewardsHub is OwnableUpgradeable, ReentrancyGuardUpgradeable, ERC72
         require(rewardIndex < rewardCount, "Reward index out of boundaries");
 
         Reward memory rew = _airdropRewards[receiver_][airdropId_][rewardIndex];
-        require(rew._exist == true, "Reward does not exist");
-        require(rew.isClaimed == false, "Reward already claimed");
+        require(rew._exist, "Reward does not exist");
+        require(!rew.isClaimed, "Reward already claimed");
 
         _airdropRewards[receiver_][airdropId_][rewardIndex].isClaimed = true;
 
@@ -733,8 +731,8 @@ contract ZizyRewardsHub is OwnableUpgradeable, ReentrancyGuardUpgradeable, ERC72
 
         Reward memory rew = _airdropRewards[receiver_][airdropId_][rewardIndex];
 
-        require(rew._exist == true, "Reward does not exist");
-        require(rew.isClaimed == false, "Can not remove claimed reward");
+        require(rew._exist, "Reward does not exist");
+        require(!rew.isClaimed, "Can not remove claimed reward");
 
         Reward[] storage receiverRewards = _airdropRewards[receiver_][airdropId_];
         receiverRewards[rewardIndex] = receiverRewards[rewardCount - 1];

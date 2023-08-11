@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity ^0.8.9;
+pragma solidity ^0.8.17;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "./ZizyCompetitionTicket.sol";
@@ -11,6 +11,8 @@ import "./ZizyCompetitionTicket.sol";
  * The contract inherits from the Ownable contract from OpenZeppelin to handle ownership and access control.
  */
 contract TicketDeployer is Ownable {
+    event TicketDeployed(address ticketContract, uint index);
+
     address[] public tickets;
     uint256 private ticketContractCounter = 0;
 
@@ -40,6 +42,8 @@ contract TicketDeployer is Ownable {
         tickets.push(address(ticketContract));
 
         ticketContractCounter++;
+
+        emit TicketDeployed(address(ticketContract), index);
 
         return (index, address(ticketContract));
     }

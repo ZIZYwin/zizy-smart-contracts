@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity ^0.8.9;
+pragma solidity ^0.8.17;
 
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
@@ -22,6 +22,12 @@ contract ZizyPoPa is ERC721, ERC721Enumerable, ERC721Pausable, Ownable {
     event PoPaMinted(address to, uint256 tokenId);
 
     /**
+     * @dev Emitted when base uri changed
+     * @param timestamp Block timestamp
+     */
+    event BaseURIUpdated(uint timestamp);
+
+    /**
      * @dev Popa base uri [optional]
      */
     string public baseUri = "";
@@ -37,7 +43,6 @@ contract ZizyPoPa is ERC721, ERC721Enumerable, ERC721Pausable, Ownable {
      * @param symbol_ The symbol of the NFT contract.
      * @param minter_ The address of the minter account.
      *
-     * @inheritdoc ERC721
      */
     constructor(string memory name_, string memory symbol_, address minter_) ERC721(name_, symbol_) {
         _setMinter(minter_);
@@ -87,8 +92,9 @@ contract ZizyPoPa is ERC721, ERC721Enumerable, ERC721Pausable, Ownable {
      * @dev This function can only be called by the contract owner.
      * It sets the base URI used for computing the tokenURI of each token.
      */
-    function setBaseURI(string memory baseUri_) public virtual onlyOwner {
+    function setBaseURI(string memory baseUri_) external virtual onlyOwner {
         baseUri = baseUri_;
+        emit BaseURIUpdated(block.timestamp);
     }
 
     /**
@@ -107,7 +113,7 @@ contract ZizyPoPa is ERC721, ERC721Enumerable, ERC721Pausable, Ownable {
      * It mints a new PoPa token with the specified ID and assigns it to the specified address.
      * Emits a `PoPaMinted` event.
      */
-    function mint(address to_, uint256 tokenId_) public virtual onlyMinter {
+    function mint(address to_, uint256 tokenId_) external virtual onlyMinter {
         _mint(to_, tokenId_);
         emit PoPaMinted(to_, tokenId_);
     }
@@ -118,7 +124,7 @@ contract ZizyPoPa is ERC721, ERC721Enumerable, ERC721Pausable, Ownable {
      * @dev This function can only be called by the contract owner.
      * It pauses all token transfers.
      */
-    function pause() public onlyOwner whenNotPaused {
+    function pause() external onlyOwner whenNotPaused {
         _pause();
     }
 
@@ -128,7 +134,7 @@ contract ZizyPoPa is ERC721, ERC721Enumerable, ERC721Pausable, Ownable {
      * @dev This function can only be called by the contract owner.
      * It unpauses all token transfers.
      */
-    function unpause() public onlyOwner whenPaused {
+    function unpause() external onlyOwner whenPaused {
         _unpause();
     }
 

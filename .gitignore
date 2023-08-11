@@ -10,6 +10,7 @@ artifacts
 
 contracts/artifacts
 contracts/**/artifacts
+contracts/research
 
 .idea
 .idea/*
