@@ -11,13 +11,26 @@ import "@openzeppelin/contracts-upgradeable/token/ERC721/IERC721Upgradeable.sol"
 /**
  * @dev Initializes the contract setting the deployer as the initial owner.
  */
-contract DepositWithdraw is OwnableUpgradeable, ReentrancyGuardUpgradeable, ERC721HolderUpgradeable {
+abstract contract DepositWithdraw is OwnableUpgradeable, ReentrancyGuardUpgradeable, ERC721HolderUpgradeable {
     using SafeERC20Upgradeable for IERC20Upgradeable;
 
     /**
      * @dev Storage gap for futures updates
      */
     uint256[49] private __gap;
+
+    /**
+     * @dev Initializes the contract
+     */
+    function __DepositWithdraw_init() internal onlyInitializing {
+        __DepositWithdraw_init_unchained();
+    }
+
+    function __DepositWithdraw_init_unchained() internal onlyInitializing {
+        __Ownable_init();
+        __ReentrancyGuard_init();
+        __ERC721Holder_init();
+    }
 
     /**
      * @notice Allows deposit native coin on the contract

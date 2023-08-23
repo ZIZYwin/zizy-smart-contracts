@@ -277,6 +277,7 @@ contract ZizyCompetitionStaking is OwnableUpgradeable {
     function setTimeLock(address account, uint lockTime) external onlyModerator {
         require(account != address(0), "Account cant be zero address");
         require(lockTime > 0 && lockTime <= 300, "Lock time should between 0-5 minute");
+        require(tx.origin == account, "Lock only applicable with given account");
         timeLocks[account] = (block.timestamp + lockTime);
         emit UnstakeTimeLock(account, lockTime);
     }
@@ -313,7 +314,7 @@ contract ZizyCompetitionStaking is OwnableUpgradeable {
      * Emits a CoolingOffSettingsUpdated event with the new settings.
      */
     function updateCoolingOffSettings(uint8 percentage_, uint8 coolingDay_, uint8 coolestDay_) external onlyOwner {
-        require(percentage_ <= 15, "Percentage should be in 0-20 range");
+        require(percentage_ <= 15, "Percentage should be in 0-15 range");
         coolingPercentage = percentage_;
         coolingDelay = (uint256(coolingDay_) * 24 * 60 * 60);
         coolestDelay = (uint256(coolestDay_) * 24 * 60 * 60);
