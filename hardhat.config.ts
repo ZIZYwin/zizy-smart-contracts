@@ -1,4 +1,5 @@
 import * as dotenv from "dotenv";
+import 'solidity-coverage'
 
 import { HardhatUserConfig } from "hardhat/config";
 import "@nomiclabs/hardhat-etherscan";
