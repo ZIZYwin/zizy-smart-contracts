@@ -250,9 +250,7 @@ contract StakeRewards is DepositWithdraw {
      * @dev This function is used to initialize the StakeRewards contract. It sets the staking contract address and the reward definer address.
      */
     function initialize(address stakingContract_, address rewardDefiner_) external initializer {
-        __Ownable_init();
-        __ReentrancyGuard_init();
-        __ERC721Holder_init();
+        __DepositWithdraw_init();
 
         setStakingContract(stakingContract_);
         setRewardDefiner(rewardDefiner_);
@@ -1000,7 +998,7 @@ contract StakeRewards is DepositWithdraw {
             _accountBaseReward[account_][rewardId_] = baseReward;
         }
 
-        uint rewardPerVestingPeriod = (baseReward.baseReward / config.vestingPeriodCount);
+        uint rewardPerVestingPeriod = (config.vestingPeriodCount > 0 ? (baseReward.baseReward / config.vestingPeriodCount) : 0);
 
         // Create vesting periods
         for (uint i = 0; i < config.vestingPeriodCount; ++i) {
