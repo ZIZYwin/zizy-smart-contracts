@@ -417,7 +417,7 @@ describe("Full System Test", function() {
 
   it("withdraw native coin from stake rewards", async function() {
     const initialBalance = await getEthereumBalance(contracts.stakeRewards.address);
-    const amount = ethers.utils.parseEther('1.0');
+    const amount = ethers.utils.parseEther("1.0");
     await contracts.stakeRewards.deposit({ value: amount });
 
     await contracts.stakeRewards.withdrawTo(signers.user3.address, amount);
