@@ -478,10 +478,10 @@ contract ZizyCompetitionStaking is OwnableUpgradeable {
 
     /**
      * @notice Sets the stake fee percentage
-     * @param stakeFeePercentage_ The stake fee percentage to be set (between 0 and 100)
+     * @param stakeFeePercentage_ The stake fee percentage to be set (between 0 and 5)
      *
      * @dev This function is used to set the stake fee percentage. It can only be called by the contract owner.
-     * The stake fee percentage should be within the range of 0 to 100 (exclusive).
+     * The stake fee percentage should be within the range of 0 to 5
      * It updates the stake fee percentage to the specified value and emits the StakeFeePercentageUpdated event.
      */
     function setStakeFeePercentage(uint8 stakeFeePercentage_) external onlyOwner {
