@@ -16,6 +16,85 @@ import "./ITicketDeployer.sol";
 contract CompetitionFactory is OwnableUpgradeable, ReentrancyGuardUpgradeable {
     using SafeERC20Upgradeable for IERC20Upgradeable;
 
+    /// @notice Struct for competition
+    struct Competition {
+        IZizyCompetitionTicket ticket;
+        address sellToken;
+        uint ticketPrice;
+        uint snapshotMin;
+        uint snapshotMax;
+        uint32 ticketSold;
+        bool pairDefined;
+        bool _exist;
+    }
+
+    /// @notice Struct for period
+    struct Period {
+        uint startTime;
+        uint endTime;
+        uint ticketBuyStartTime;
+        uint ticketBuyEndTime;
+        uint256 competitionCount;
+        bool isOver;
+        bool _exist;
+    }
+
+    /// @notice Struct for allocation tier
+    struct Tier {
+        uint min;
+        uint max;
+        uint32 allocation;
+    }
+
+    /// @notice Struct for allocation of period
+    struct Allocation {
+        uint32 bought;
+        uint32 max;
+        bool hasAllocation;
+    }
+
+    // Max ticket count per competition = 1M
+    uint32 constant MAX_TICKET_PER_COMPETITION = 1_000_000;
+
+    /// @notice The ID of the active period
+    uint256 public activePeriod;
+
+    /// @notice The total number of periods
+    uint256 public totalPeriodCount;
+
+    /// @notice The total number of competitions
+    uint256 public totalCompetitionCount;
+
+    /// @notice The staking contract
+    IZizyCompetitionStaking public stakingContract;
+
+    /// @notice The ticket deployer contract
+    ITicketDeployer public ticketDeployer;
+
+    /// @notice The address to receive payment
+    address public paymentReceiver;
+
+    /// @notice The address authorized to mint tickets
+    address public ticketMinter;
+
+    /// @dev Competition periods [periodId > Period]
+    mapping(uint256 => Period) private _periods;
+
+    /// @dev Competition in periods [periodId > competitionId > Competition]
+    mapping(uint256 => mapping(uint256 => Competition)) private _periodCompetitions;
+
+    /// @dev Competition tiers [keccak(periodId,competitionId) > Tier]
+    mapping(bytes32 => Tier[]) private _compTiers;
+
+    /// @dev Competition allocations [address > periodId > competitionId > Allocation]
+    mapping(address => mapping(uint256 => mapping(uint256 => Allocation))) private _allocations;
+
+    /// @dev Period participations [Account > PeriodId > Status]
+    mapping(address => mapping(uint256 => bool)) private _periodParticipation;
+
+    /// @dev Period competition ids collection
+    mapping(uint256 => uint256[]) private _periodCompetitionIds;
+
     /**
      * @notice Event emitted when a new period is created.
      * @param periodId The ID of the new period.
@@ -119,82 +198,6 @@ contract CompetitionFactory is OwnableUpgradeable, ReentrancyGuardUpgradeable {
      */
     event TiersUpdate(uint periodId, uint competitionId);
 
-    // Add competition allocation limit
-    struct Competition {
-        IZizyCompetitionTicket ticket;
-        address sellToken;
-        uint ticketPrice;
-        uint snapshotMin;
-        uint snapshotMax;
-        uint32 ticketSold;
-        bool pairDefined;
-        bool _exist;
-    }
-
-    struct Period {
-        uint startTime;
-        uint endTime;
-        uint ticketBuyStartTime;
-        uint ticketBuyEndTime;
-        uint256 competitionCount;
-        bool isOver;
-        bool _exist;
-    }
-
-    struct Tier {
-        uint min;
-        uint max;
-        uint32 allocation;
-    }
-
-    struct Allocation {
-        uint32 bought;
-        uint32 max;
-        bool hasAllocation;
-    }
-
-    // Max ticket count per competition = 1M
-    uint32 constant MAX_TICKET_PER_COMPETITION = 1_000_000;
-
-    /// @notice The ID of the active period
-    uint256 public activePeriod;
-
-    /// @notice The total number of periods
-    uint256 public totalPeriodCount;
-
-    /// @notice The total number of competitions
-    uint256 public totalCompetitionCount;
-
-    /// @notice The staking contract
-    IZizyCompetitionStaking public stakingContract;
-
-    /// @notice The ticket deployer contract
-    ITicketDeployer public ticketDeployer;
-
-    /// @notice The address to receive payment
-    address public paymentReceiver;
-
-    /// @notice The address authorized to mint tickets
-    address public ticketMinter;
-
-    /// @dev Competition periods [periodId > Period]
-    mapping(uint256 => Period) private _periods;
-
-    /// @dev Competition in periods [periodId > competitionId > Competition]
-    mapping(uint256 => mapping(uint256 => Competition)) private _periodCompetitions;
-
-    /// @dev Competition tiers [keccak(periodId,competitionId) > Tier]
-    mapping(bytes32 => Tier[]) private _compTiers;
-
-    /// @dev Competition allocations [address > periodId > competitionId > Allocation]
-    mapping(address => mapping(uint256 => mapping(uint256 => Allocation))) private _allocations;
-
-    /// @dev Period participations [Account > PeriodId > Status]
-    mapping(address => mapping(uint256 => bool)) private _periodParticipation;
-
-    /// @dev Period competition ids collection
-    mapping(uint256 => uint256[]) private _periodCompetitionIds;
-
     /**
      * @notice Modifier to check if the staking contract is set.
      */
@@ -266,16 +269,6 @@ contract CompetitionFactory is OwnableUpgradeable, ReentrancyGuardUpgradeable {
     }
 
     /**
-     * @notice Generates the hash of the period competition.
-     * @param periodId The ID of the period.
-     * @param competitionId The ID of the competition.
-     * @return The hash of the period competition.
-     */
-    function _competitionKey(uint256 periodId, uint256 competitionId) internal pure returns (bytes32) {
-        return keccak256(abi.encode(periodId, competitionId));
-    }
-
-    /**
      * @notice Checks if any account has participation in the specified period.
      * @param account_ The account to check.
      * @param periodId_ The ID of the period.
@@ -303,31 +296,6 @@ contract CompetitionFactory is OwnableUpgradeable, ReentrancyGuardUpgradeable {
         require(minter_ != address(0), "Minter address can not be zero");
         ticketMinter = minter_;
         emit TicketMinterUpdate(minter_);
-    }
-
-    /**
-     * @notice Checks if the competition ticket buy settings are defined.
-     * @param periodId The ID of the period.
-     * @param competitionId The ID of the competition.
-     * @return A boolean indicating if the competition settings are defined.
-     */
-    function isCompetitionSettingsDefined(uint256 periodId, uint256 competitionId) public view returns (bool) {
-        Competition memory comp = _periodCompetitions[periodId][competitionId];
-
-        // Check competition
-        if (!comp._exist) {
-            return false;
-        }
-        // Check competition tiers
-        if (!_isCompetitionTiersDefined(periodId, competitionId)) {
-            return false;
-        }
-        // Check sellToken & price
-        if (!comp.pairDefined) {
-            return false;
-        }
-
-        return true;
     }
 
     /**
@@ -361,54 +329,6 @@ contract CompetitionFactory is OwnableUpgradeable, ReentrancyGuardUpgradeable {
      */
     function getAllocation(address account, uint256 periodId, uint256 competitionId) external view returns (Allocation memory) {
         return _getAllocation(account, periodId, competitionId);
-    }
-
-    /**
-     * @notice Gets the competition allocation for an account.
-     * @param account The account for which to get the allocation.
-     * @param periodId The ID of the period.
-     * @param competitionId The ID of the competition.
-     * @return The allocation details.
-     */
-    function _getAllocation(address account, uint256 periodId, uint256 competitionId) internal stakeContractIsSet view returns (Allocation memory) {
-        Allocation memory alloc = _allocations[account][periodId][competitionId];
-        if (alloc.hasAllocation) {
-            return alloc;
-        }
-
-        Competition memory comp = _periodCompetitions[periodId][competitionId];
-        require(comp.snapshotMin > 0 && comp.snapshotMax > 0 && comp.snapshotMin <= comp.snapshotMax, "Competition snapshot ranges is not defined");
-        (uint256 average, bool _calculated) = stakingContract.getPeriodSnapshotsAverage(account, periodId, comp.snapshotMin, comp.snapshotMax);
-
-        require(_calculated, "Period snapshot averages does not calculated !");
-
-        bytes32 compHash = _competitionKey(periodId, competitionId);
-        Tier[] memory tiers = _compTiers[compHash];
-        Tier memory tier = Tier(0, 0, 0);
-        uint tierLength = tiers.length;
-        require(tierLength >= 1, "Competition tiers is not defined");
-
-        for (uint i = 0; i < tierLength; ++i) {
-            tier = tiers[i];
-            alloc.hasAllocation = true;
-
-            // Break if user has lower average for lowest tier
-            if (i == 0 && (average < tier.min)) {
-                alloc.bought = 0;
-                alloc.max = 0;
-
-                break;
-            }
-
-            // Find user tier range
-            if (average >= tier.min && average <= tier.max) {
-                alloc.bought = 0;
-                alloc.max = tier.allocation;
-                break;
-            }
-        }
-
-        return alloc;
     }
 
     /**
@@ -573,17 +493,6 @@ contract CompetitionFactory is OwnableUpgradeable, ReentrancyGuardUpgradeable {
         comp.snapshotMax = max;
 
         emit SnapshotRangesUpdate(periodId, competitionId, min, max);
-    }
-
-    /**
-     * @notice Checks if the competition tiers are defined.
-     * @param periodId The ID of the period.
-     * @param competitionId The ID of the competition.
-     * @return A boolean indicating if the competition tiers are defined.
-     */
-    function _isCompetitionTiersDefined(uint256 periodId, uint256 competitionId) internal view returns (bool) {
-        bytes32 compHash = _competitionKey(periodId, competitionId);
-        return (_compTiers[compHash].length > 0);
     }
 
     /**
@@ -768,18 +677,6 @@ contract CompetitionFactory is OwnableUpgradeable, ReentrancyGuardUpgradeable {
     }
 
     /**
-     * @notice Gets the ticket contract address for a competition within a period.
-     * @param periodId The ID of the period.
-     * @param competitionId The ID of the competition.
-     * @return The address of the ticket contract.
-     */
-    function _compTicket(uint256 periodId, uint256 competitionId) internal view returns (address) {
-        Competition memory comp = _periodCompetitions[periodId][competitionId];
-        require(comp._exist, "ZizyComp: Competition does not exist");
-        return address(comp.ticket);
-    }
-
-    /**
      * @notice Pauses the transfers of tickets for a competition.
      * @param periodId The ID of the period.
      * @param competitionId The ID of the competition.
@@ -819,5 +716,111 @@ contract CompetitionFactory is OwnableUpgradeable, ReentrancyGuardUpgradeable {
     function totalSupplyOfCompetition(uint256 periodId, uint256 competitionId) external view returns (uint256) {
         address ticketAddr = _compTicket(periodId, competitionId);
         return IZizyCompetitionTicket(ticketAddr).totalSupply();
+    }
+
+    /**
+     * @notice Checks if the competition ticket buy settings are defined.
+     * @param periodId The ID of the period.
+     * @param competitionId The ID of the competition.
+     * @return A boolean indicating if the competition settings are defined.
+     */
+    function isCompetitionSettingsDefined(uint256 periodId, uint256 competitionId) public view returns (bool) {
+        Competition memory comp = _periodCompetitions[periodId][competitionId];
+
+        // Check competition
+        if (!comp._exist) {
+            return false;
+        }
+        // Check competition tiers
+        if (!_isCompetitionTiersDefined(periodId, competitionId)) {
+            return false;
+        }
+        // Check sellToken & price
+        if (!comp.pairDefined) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * @notice Generates the hash of the period competition.
+     * @param periodId The ID of the period.
+     * @param competitionId The ID of the competition.
+     * @return The hash of the period competition.
+     */
+    function _competitionKey(uint256 periodId, uint256 competitionId) internal pure returns (bytes32) {
+        return keccak256(abi.encode(periodId, competitionId));
+    }
+
+    /**
+     * @notice Gets the competition allocation for an account.
+     * @param account The account for which to get the allocation.
+     * @param periodId The ID of the period.
+     * @param competitionId The ID of the competition.
+     * @return The allocation details.
+     */
+    function _getAllocation(address account, uint256 periodId, uint256 competitionId) internal stakeContractIsSet view returns (Allocation memory) {
+        Allocation memory alloc = _allocations[account][periodId][competitionId];
+        if (alloc.hasAllocation) {
+            return alloc;
+        }
+
+        Competition memory comp = _periodCompetitions[periodId][competitionId];
+        require(comp.snapshotMin > 0 && comp.snapshotMax > 0 && comp.snapshotMin <= comp.snapshotMax, "Competition snapshot ranges is not defined");
+        (uint256 average, bool _calculated) = stakingContract.getPeriodSnapshotsAverage(account, periodId, comp.snapshotMin, comp.snapshotMax);
+
+        require(_calculated, "Period snapshot averages does not calculated !");
+
+        bytes32 compHash = _competitionKey(periodId, competitionId);
+        Tier[] memory tiers = _compTiers[compHash];
+        Tier memory tier = Tier(0, 0, 0);
+        uint tierLength = tiers.length;
+        require(tierLength >= 1, "Competition tiers is not defined");
+
+        for (uint i = 0; i < tierLength; ++i) {
+            tier = tiers[i];
+            alloc.hasAllocation = true;
+
+            // Break if user has lower average for lowest tier
+            if (i == 0 && (average < tier.min)) {
+                alloc.bought = 0;
+                alloc.max = 0;
+
+                break;
+            }
+
+            // Find user tier range
+            if (average >= tier.min && average <= tier.max) {
+                alloc.bought = 0;
+                alloc.max = tier.allocation;
+                break;
+            }
+        }
+
+        return alloc;
+    }
+
+    /**
+     * @notice Checks if the competition tiers are defined.
+     * @param periodId The ID of the period.
+     * @param competitionId The ID of the competition.
+     * @return A boolean indicating if the competition tiers are defined.
+     */
+    function _isCompetitionTiersDefined(uint256 periodId, uint256 competitionId) internal view returns (bool) {
+        bytes32 compHash = _competitionKey(periodId, competitionId);
+        return (_compTiers[compHash].length > 0);
+    }
+
+    /**
+     * @notice Gets the ticket contract address for a competition within a period.
+     * @param periodId The ID of the period.
+     * @param competitionId The ID of the competition.
+     * @return The address of the ticket contract.
+     */
+    function _compTicket(uint256 periodId, uint256 competitionId) internal view returns (address) {
+        Competition memory comp = _periodCompetitions[periodId][competitionId];
+        require(comp._exist, "ZizyComp: Competition does not exist");
+        return address(comp.ticket);
     }
 }

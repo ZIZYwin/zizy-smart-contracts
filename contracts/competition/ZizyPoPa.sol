@@ -15,6 +15,16 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 contract ZizyPoPa is ERC721, ERC721Enumerable, ERC721Pausable, Ownable {
 
     /**
+     * @dev Popa base uri [optional]
+     */
+    string public baseUri = "";
+
+    /**
+     * @notice The address of the minter account.
+     */
+    address public minterAccount;
+
+    /**
      * @dev Emitted when a new PoPa token is minted.
      * @param to The address to which the token is minted.
      * @param tokenId The ID of the minted token.
@@ -28,14 +38,12 @@ contract ZizyPoPa is ERC721, ERC721Enumerable, ERC721Pausable, Ownable {
     event BaseURIUpdated(uint timestamp);
 
     /**
-     * @dev Popa base uri [optional]
+     * @dev Throws if the caller is not the minter account.
      */
-    string public baseUri = "";
-
-    /**
-     * @notice The address of the minter account.
-     */
-    address public minterAccount;
+    modifier onlyMinter() {
+        require(msg.sender == minterAccount, "Only call from minter");
+        _;
+    }
 
     /**
      * @notice Initializes the ZizyPoPa contract.
@@ -48,24 +56,7 @@ contract ZizyPoPa is ERC721, ERC721Enumerable, ERC721Pausable, Ownable {
         _setMinter(minter_);
     }
 
-    /**
-     * @dev Throws if the caller is not the minter account.
-     */
-    modifier onlyMinter() {
-        require(msg.sender == minterAccount, "Only call from minter");
-        _;
-    }
 
-    /**
-     * @notice Sets the minter account address.
-     * @param minter_ The address of the minter account.
-     *
-     * @dev It sets the minter account address to the specified address.
-     */
-    function _setMinter(address minter_) internal {
-        require(minter_ != address(0), "Minter account can not be zero");
-        minterAccount = minter_;
-    }
 
     /**
      * @notice Sets the minter account address.
@@ -78,12 +69,6 @@ contract ZizyPoPa is ERC721, ERC721Enumerable, ERC721Pausable, Ownable {
         _setMinter(minter_);
     }
 
-    /**
-     * @inheritdoc ERC721
-     */
-    function supportsInterface(bytes4 interfaceId) public view virtual override(ERC721, ERC721Enumerable) returns (bool) {
-        return super.supportsInterface(interfaceId);
-    }
 
     /**
      * @notice Sets the base URI for token metadata.
@@ -97,12 +82,6 @@ contract ZizyPoPa is ERC721, ERC721Enumerable, ERC721Pausable, Ownable {
         emit BaseURIUpdated(block.timestamp);
     }
 
-    /**
-     * @inheritdoc ERC721
-     */
-    function _baseURI() internal view virtual override(ERC721) returns (string memory) {
-        return baseUri;
-    }
 
     /**
      * @notice Mints a new PoPa NFT token.
@@ -136,6 +115,31 @@ contract ZizyPoPa is ERC721, ERC721Enumerable, ERC721Pausable, Ownable {
      */
     function unpause() external onlyOwner whenPaused {
         _unpause();
+    }
+
+    /**
+     * @inheritdoc ERC721
+     */
+    function supportsInterface(bytes4 interfaceId) public view virtual override(ERC721, ERC721Enumerable) returns (bool) {
+        return super.supportsInterface(interfaceId);
+    }
+
+    /**
+     * @notice Sets the minter account address.
+     * @param minter_ The address of the minter account.
+     *
+     * @dev It sets the minter account address to the specified address.
+     */
+    function _setMinter(address minter_) internal {
+        require(minter_ != address(0), "Minter account can not be zero");
+        minterAccount = minter_;
+    }
+
+    /**
+     * @inheritdoc ERC721
+     */
+    function _baseURI() internal view virtual override(ERC721) returns (string memory) {
+        return baseUri;
     }
 
     /**

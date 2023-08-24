@@ -39,71 +39,10 @@ abstract contract DepositWithdraw is OwnableUpgradeable, ReentrancyGuardUpgradea
     event Withdraw(AssetType assetType, address assetAddress, uint amount, uint tokenId);
 
     /**
-     * @dev Initializes the contract
-     */
-    function __DepositWithdraw_init() internal onlyInitializing {
-        __DepositWithdraw_init_unchained();
-    }
-
-    function __DepositWithdraw_init_unchained() internal onlyInitializing {
-        __Ownable_init();
-        __ReentrancyGuard_init();
-        __ERC721Holder_init();
-    }
-
-    /**
      * @notice Allows deposit native coin on the contract
      */
     function deposit() external payable onlyOwner {
         emit Deposit(_msgSender(), msg.value);
-    }
-
-    /**
-     * @notice This internal function handles the transfer of native coins (Ether in case of Ethereum).
-     * @param to_ The recipient's address. The recipient must be payable, as they are receiving native coins.
-     * @param amount The amount of native coins to be transferred. This value is in the smallest denomination (Wei in case of Ethereum).
-     *
-     * @dev Note that the function checks if the contract has sufficient balance to send the requested amount.
-     * If there are not enough native coins in the contract, the transaction will fail with an error message.
-     * After confirming there are enough native coins, the function uses a low-level `call` to transfer them.
-     */
-    function _sendNativeCoin(address payable to_, uint amount) internal {
-        require(address(this).balance >= amount, "Insufficient native balance");
-        (bool sent,) = to_.call{value : amount}("");
-        require(sent, "Native coin transfer failed");
-        emit Withdraw(AssetType.Native, address(0), amount, 0);
-    }
-
-    /**
-     * @notice Internal function to send ERC20 tokens
-     * @param to_ The address of the recipient of the ERC20 token transfer. The recipient must be a valid address.
-     * @param token_ The address of the ERC20 token to send.
-     * @param amount The amount of ERC20 tokens to send.
-     *
-     * @dev Note that the function checks if the contract has sufficient balance of the specified ERC20 token to send the requested amount.
-     * If there are not enough tokens in the contract, the transaction will fail with an error message.
-     * After confirming there are enough tokens, the function uses the `safeTransfer` function of the ERC20 token contract to transfer the tokens to the recipient.
-     */
-    function _sendToken(address to_, address token_, uint amount) internal {
-        IERC20Upgradeable token = IERC20Upgradeable(token_);
-        token.safeTransfer(to_, amount);
-        emit Withdraw(AssetType.ERC20, token_, amount, 0);
-    }
-
-    /**
-     * @notice Internal function to send NFTs
-     * @param to_ The address to send the NFT to. The address must be a valid address capable of receiving NFTs.
-     * @param token_ The address of the NFT contract.
-     * @param tokenId_ The ID of the NFT to send.
-     *
-     * @dev Note that the function checks if the contract is the owner of the specified NFT. Only if the contract owns the NFT, it can be transferred.
-     * After confirming the ownership, the function uses the `safeTransferFrom` function of the NFT contract to transfer the NFT to the specified address.
-     */
-    function _sendNFT(address to_, address token_, uint tokenId_) internal {
-        IERC721Upgradeable nft = IERC721Upgradeable(token_);
-        require(nft.ownerOf(tokenId_) == address(this), "This contract is not owner of given tokenId");
-        nft.safeTransferFrom(address(this), to_, tokenId_);
-        emit Withdraw(AssetType.ERC721, token_, 0, tokenId_);
     }
 
     /**
@@ -178,5 +117,66 @@ abstract contract DepositWithdraw is OwnableUpgradeable, ReentrancyGuardUpgradea
      */
     function withdrawNFTTo(address to_, address token_, uint tokenId_) external onlyOwner {
         _sendNFT(to_, token_, tokenId_);
+    }
+
+    /**
+     * @dev Initializes the contract
+     */
+    function __DepositWithdraw_init() internal onlyInitializing {
+        __DepositWithdraw_init_unchained();
+    }
+
+    function __DepositWithdraw_init_unchained() internal onlyInitializing {
+        __Ownable_init();
+        __ReentrancyGuard_init();
+        __ERC721Holder_init();
+    }
+
+    /**
+     * @notice This internal function handles the transfer of native coins (Ether in case of Ethereum).
+     * @param to_ The recipient's address. The recipient must be payable, as they are receiving native coins.
+     * @param amount The amount of native coins to be transferred. This value is in the smallest denomination (Wei in case of Ethereum).
+     *
+     * @dev Note that the function checks if the contract has sufficient balance to send the requested amount.
+     * If there are not enough native coins in the contract, the transaction will fail with an error message.
+     * After confirming there are enough native coins, the function uses a low-level `call` to transfer them.
+     */
+    function _sendNativeCoin(address payable to_, uint amount) internal {
+        require(address(this).balance >= amount, "Insufficient native balance");
+        (bool sent,) = to_.call{value : amount}("");
+        require(sent, "Native coin transfer failed");
+        emit Withdraw(AssetType.Native, address(0), amount, 0);
+    }
+
+    /**
+     * @notice Internal function to send ERC20 tokens
+     * @param to_ The address of the recipient of the ERC20 token transfer. The recipient must be a valid address.
+     * @param token_ The address of the ERC20 token to send.
+     * @param amount The amount of ERC20 tokens to send.
+     *
+     * @dev Note that the function checks if the contract has sufficient balance of the specified ERC20 token to send the requested amount.
+     * If there are not enough tokens in the contract, the transaction will fail with an error message.
+     * After confirming there are enough tokens, the function uses the `safeTransfer` function of the ERC20 token contract to transfer the tokens to the recipient.
+     */
+    function _sendToken(address to_, address token_, uint amount) internal {
+        IERC20Upgradeable token = IERC20Upgradeable(token_);
+        token.safeTransfer(to_, amount);
+        emit Withdraw(AssetType.ERC20, token_, amount, 0);
+    }
+
+    /**
+     * @notice Internal function to send NFTs
+     * @param to_ The address to send the NFT to. The address must be a valid address capable of receiving NFTs.
+     * @param token_ The address of the NFT contract.
+     * @param tokenId_ The ID of the NFT to send.
+     *
+     * @dev Note that the function checks if the contract is the owner of the specified NFT. Only if the contract owns the NFT, it can be transferred.
+     * After confirming the ownership, the function uses the `safeTransferFrom` function of the NFT contract to transfer the NFT to the specified address.
+     */
+    function _sendNFT(address to_, address token_, uint tokenId_) internal {
+        IERC721Upgradeable nft = IERC721Upgradeable(token_);
+        require(nft.ownerOf(tokenId_) == address(this), "This contract is not owner of given tokenId");
+        nft.safeTransferFrom(address(this), to_, tokenId_);
+        emit Withdraw(AssetType.ERC721, token_, 0, tokenId_);
     }
 }

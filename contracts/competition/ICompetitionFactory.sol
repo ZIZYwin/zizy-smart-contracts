@@ -21,28 +21,6 @@ interface ICompetitionFactory {
     function totalCompetitionCount() external view returns (uint);
 
     /**
-     * @notice Create a new competition period.
-     * @param newPeriodId The ID of the new period.
-     * @param startTime_ The start time of the period.
-     * @param endTime_ The end time of the period.
-     * @param ticketBuyStart_ The start time for buying tickets.
-     * @param ticketBuyEnd_ The end time for buying tickets.
-     * @return The ID of the created competition period.
-     */
-    function createCompetitionPeriod(uint newPeriodId, uint startTime_, uint endTime_, uint ticketBuyStart_, uint ticketBuyEnd_) external returns (uint256);
-
-    /**
-     * @notice Update a competition period.
-     * @param periodId_ The ID of the period to update.
-     * @param startTime_ The new start time of the period.
-     * @param endTime_ The new end time of the period.
-     * @param ticketBuyStart_ The new start time for buying tickets.
-     * @param ticketBuyEnd_ The new end time for buying tickets.
-     * @return A boolean indicating whether the update was successful.
-     */
-    function updateCompetitionPeriod(uint periodId_, uint startTime_, uint endTime_, uint ticketBuyStart_, uint ticketBuyEnd_) external returns (bool);
-
-    /**
      * @notice Get the competition ID with the specified index.
      * @param periodId The ID of the period.
      * @param index The index of the competition.
@@ -67,13 +45,6 @@ interface ICompetitionFactory {
     function getAllocation(address account, uint256 periodId, uint256 competitionId) external view returns (uint32, uint32, bool);
 
     /**
-     * @notice Get the end time of a period.
-     * @param periodId The ID of the period.
-     * @return The end time of the period.
-     */
-    function getPeriodEndTime(uint256 periodId) external view returns (uint);
-
-    /**
      * @notice Check if an account has participated in a period.
      * @param account_ The account address.
      * @param periodId_ The ID of the period.
@@ -95,7 +66,7 @@ interface ICompetitionFactory {
      * @param competitionId The ID of the competition.
      * @return The competition address and pause flag.
      */
-    function getPeriodCompetition(uint256 periodId, uint16 competitionId) external view returns (address, bool);
+    function getPeriodCompetition(uint256 periodId, uint256 competitionId) external view returns (address, bool);
 
     /**
      * @notice Get the count of competitions for a period.
@@ -109,14 +80,14 @@ interface ICompetitionFactory {
      * @param periodId The ID of the period.
      * @param competitionId The ID of the competition.
      */
-    function pauseCompetitionTransfer(uint256 periodId, uint16 competitionId) external;
+    function pauseCompetitionTransfer(uint256 periodId, uint256 competitionId) external;
 
     /**
      * @notice Unpause the ticket transfer of competition
      * @param periodId The ID of the period.
      * @param competitionId The ID of the competition.
      */
-    function unpauseCompetitionTransfer(uint256 periodId, uint16 competitionId) external;
+    function unpauseCompetitionTransfer(uint256 periodId, uint256 competitionId) external;
 
     /**
      * @notice Set the ticket base URI for a competition.
@@ -124,7 +95,7 @@ interface ICompetitionFactory {
      * @param competitionId The ID of the competition.
      * @param baseUri_ The base URI to set.
      */
-    function setCompetitionBaseURI(uint256 periodId, uint16 competitionId, string memory baseUri_) external;
+    function setCompetitionBaseURI(uint256 periodId, uint256 competitionId, string memory baseUri_) external;
 
     /**
      * @notice Get the total sold ticket count for a competition
@@ -132,5 +103,5 @@ interface ICompetitionFactory {
      * @param competitionId The ID of the competition.
      * @return The total supply of competitions.
      */
-    function totalSupplyOfCompetition(uint256 periodId, uint16 competitionId) external view returns (uint256);
+    function totalSupplyOfCompetition(uint256 periodId, uint256 competitionId) external view returns (uint256);
 }

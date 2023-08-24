@@ -11,10 +11,15 @@ import "./ZizyCompetitionTicket.sol";
  * The contract inherits from the Ownable contract from OpenZeppelin to handle ownership and access control.
  */
 contract TicketDeployer is Ownable {
-    event TicketDeployed(address ticketContract, uint index);
 
+    /// @notice Ticket list
     address[] public tickets;
+
+    /// @notice Ticket counter
     uint256 private ticketContractCounter = 0;
+
+    /// @notice Emit when new ticket deployed
+    event TicketDeployed(address ticketContract, uint index);
 
     /**
      * @dev Constructor function

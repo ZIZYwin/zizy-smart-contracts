@@ -19,6 +19,34 @@ import "./ZizyPoPa.sol";
  *
  */
 contract ZizyPoPaFactory is OwnableUpgradeable, ReentrancyGuardUpgradeable {
+
+    /// @notice PoPA Claim payment amount (PoPA mint cost for network fee)
+    uint256 public claimPayment;
+
+    /// @notice PoPA Minter account/contract
+    address public popaMinter;
+
+    /// @notice PoPA contract address storage
+    address[] private _popas;
+
+    /// @notice Deployed PoPA counter
+    uint256 private popaCounter;
+
+    // @dev Mapping for period PoPA nft's: [periodId > PoPA Address]
+    mapping(uint256 => address) private _periodPopas;
+
+    // @dev Mapping for PoPA claim states: [Account > PeriodId > Claim State]
+    mapping(address => mapping(uint256 => bool)) private _popaClaimed;
+
+    // @dev Mapping for PoPA claim mint states: [Account > PeriodId > Mint State]
+    mapping(address => mapping(uint256 => bool)) private _popaClaimMinted;
+
+    // @dev Required percentage of participation in competitions for PoPA claim
+    uint private _popaClaimAllocationPercentage;
+
+    // @notice Competition factory contract address
+    address public competitionFactory;
+
     /**
      * @dev Emitted when a PoPa NFT is claimed by an account for a specific period.
      * @param claimer The account that claimed the PoPa NFT.
@@ -65,33 +93,6 @@ contract ZizyPoPaFactory is OwnableUpgradeable, ReentrancyGuardUpgradeable {
      */
     event CompFactoryUpdated(address factoryAddress);
 
-    /// @notice PoPA Claim payment amount (PoPA mint cost for network fee)
-    uint256 public claimPayment;
-
-    /// @notice PoPA Minter account/contract
-    address public popaMinter;
-
-    /// @notice PoPA contract address storage
-    address[] private _popas;
-
-    /// @notice Deployed PoPA counter
-    uint256 private popaCounter;
-
-    // @dev Mapping for period PoPA nft's: [periodId > PoPA Address]
-    mapping(uint256 => address) private _periodPopas;
-
-    // @dev Mapping for PoPA claim states: [Account > PeriodId > Claim State]
-    mapping(address => mapping(uint256 => bool)) private _popaClaimed;
-
-    // @dev Mapping for PoPA claim mint states: [Account > PeriodId > Mint State]
-    mapping(address => mapping(uint256 => bool)) private _popaClaimMinted;
-
-    // @dev Required percentage of participation in competitions for PoPA claim
-    uint private _popaClaimAllocationPercentage;
-
-    // @notice Competition factory contract address
-    address public competitionFactory;
-
     /**
      * @dev Throws an error if the caller is not the minter.
      */
@@ -106,6 +107,53 @@ contract ZizyPoPaFactory is OwnableUpgradeable, ReentrancyGuardUpgradeable {
      */
     constructor() {
         _disableInitializers();
+    }
+
+    /**
+     * @notice Claims a PoPa NFT for the specified period ID
+     * @param periodId_ The ID of the period for which to claim the PoPa NFT
+     *
+     * @dev This function allows users to claim a PoPa NFT for the specified period ID by sending the required claim payment.
+     * The claim payment must be equal to or greater than the configured claim payment amount.
+     * The period ID must be valid and the caller must not have already claimed the PoPa NFT for the specified period ID.
+     * The caller must also meet the claim conditions as determined by the internal `_claimableCheck` function.
+     * If the claim payment transfer to the minter fails, an error is thrown.
+     * Sets the claim state for the caller and period ID to true.
+     * Emits a `PopaClaimed` event with the caller's address and period ID.
+     * Throws an error if the claim payment is insufficient, the period ID is unknown, the caller has already claimed the PoPa NFT,
+     * or the claim conditions are not met.
+     */
+    function claim(uint256 periodId_) external payable nonReentrant {
+        // Check payment limits
+        if (msg.value < claimPayment) {
+            revert("Insufficient claim payment");
+        }
+        if (msg.value > claimPayment) {
+            revert("Overpayment. Please reduce your payment amount");
+        }
+
+        address popaContract = _periodPopas[periodId_];
+        if (popaContract == address(0)) {
+            revert("Unknown period id");
+        }
+        if (_popaClaimed[_msgSender()][periodId_]) {
+            revert("You already claimed this popa nft");
+        }
+
+        if (!_claimableCheck(_msgSender(), periodId_)) {
+            revert("Claim conditions not met");
+        }
+
+        // Set popaClaimed state
+        _popaClaimed[_msgSender()][periodId_] = true;
+
+        // Transfer claim payment to minter
+        (bool success,) = popaMinter.call{value : msg.value}("");
+        if (!success) {
+            revert("Transfer failed");
+        }
+
+        emit PopaClaimed(_msgSender(), periodId_);
     }
 
     /**
@@ -167,20 +215,6 @@ contract ZizyPoPaFactory is OwnableUpgradeable, ReentrancyGuardUpgradeable {
     }
 
     /**
-     * @notice Internal function to set the PoPA claim allocation percentage
-     * @param percentage The allocation percentage to be set
-     *
-     * @dev It sets the _popaClaimAllocationPercentage variable to the specified percentage.
-     * Emits an AllocationPercentageUpdated event with the updated percentage.
-     * @dev Throws an error if the percentage is not between 0 and 100.
-     */
-    function _setPopaClaimAllocationPercentage(uint percentage) internal {
-        require(percentage <= 100, "Allocation percentage should between 0-100");
-        _popaClaimAllocationPercentage = percentage;
-        emit AllocationPercentageUpdated(percentage);
-    }
-
-    /**
      * @notice Checks if a specific PoPA has been claimed
      * @param account The account to check the claim status for
      * @param periodId The period ID of the PoPA
@@ -229,18 +263,6 @@ contract ZizyPoPaFactory is OwnableUpgradeable, ReentrancyGuardUpgradeable {
     function getPopaContractWithIndex(uint index) external view returns (address) {
         require(index < _popas.length, "Out of index");
         return _popas[index];
-    }
-
-    /**
-     * @notice Sets the competition factory contract address
-     * @param competitionFactory_ The address of the competition factory contract
-     *
-     * @dev It sets the competition factory contract address to the specified address.
-     */
-    function _setCompetitionFactory(address competitionFactory_) internal {
-        require(competitionFactory_ != address(0), "Competition factory cant be zero address");
-        competitionFactory = competitionFactory_;
-        emit CompFactoryUpdated(competitionFactory_);
     }
 
     /**
@@ -336,53 +358,6 @@ contract ZizyPoPaFactory is OwnableUpgradeable, ReentrancyGuardUpgradeable {
     }
 
     /**
-     * @notice Claims a PoPa NFT for the specified period ID
-     * @param periodId_ The ID of the period for which to claim the PoPa NFT
-     *
-     * @dev This function allows users to claim a PoPa NFT for the specified period ID by sending the required claim payment.
-     * The claim payment must be equal to or greater than the configured claim payment amount.
-     * The period ID must be valid and the caller must not have already claimed the PoPa NFT for the specified period ID.
-     * The caller must also meet the claim conditions as determined by the internal `_claimableCheck` function.
-     * If the claim payment transfer to the minter fails, an error is thrown.
-     * Sets the claim state for the caller and period ID to true.
-     * Emits a `PopaClaimed` event with the caller's address and period ID.
-     * Throws an error if the claim payment is insufficient, the period ID is unknown, the caller has already claimed the PoPa NFT,
-     * or the claim conditions are not met.
-     */
-    function claim(uint256 periodId_) external payable nonReentrant {
-        // Check payment limits
-        if (msg.value < claimPayment) {
-            revert("Insufficient claim payment");
-        }
-        if (msg.value > claimPayment) {
-            revert("Overpayment. Please reduce your payment amount");
-        }
-
-        address popaContract = _periodPopas[periodId_];
-        if (popaContract == address(0)) {
-            revert("Unknown period id");
-        }
-        if (_popaClaimed[_msgSender()][periodId_]) {
-            revert("You already claimed this popa nft");
-        }
-
-        if (!_claimableCheck(_msgSender(), periodId_)) {
-            revert("Claim conditions not met");
-        }
-
-        // Set popaClaimed state
-        _popaClaimed[_msgSender()][periodId_] = true;
-
-        // Transfer claim payment to minter
-        (bool success,) = popaMinter.call{value : msg.value}("");
-        if (!success) {
-            revert("Transfer failed");
-        }
-
-        emit PopaClaimed(_msgSender(), periodId_);
-    }
-
-    /**
      * @notice Gets the participation percentage condition for claiming a PoPa NFT
      * @return The allocation percentage required for claiming a PoPa NFT
      *
@@ -409,6 +384,40 @@ contract ZizyPoPaFactory is OwnableUpgradeable, ReentrancyGuardUpgradeable {
      */
     function claimableCheck(address account, uint256 periodId) external view returns (bool) {
         return _claimableCheck(account, periodId);
+    }
+
+    /**
+     * @notice Get the count of deployed PoPa NFT contracts
+     * @return The number of deployed PoPa NFT contracts
+     */
+    function getDeployedContractCount() external view returns (uint256) {
+        return popaCounter;
+    }
+
+    /**
+     * @notice Internal function to set the PoPA claim allocation percentage
+     * @param percentage The allocation percentage to be set
+     *
+     * @dev It sets the _popaClaimAllocationPercentage variable to the specified percentage.
+     * Emits an AllocationPercentageUpdated event with the updated percentage.
+     * @dev Throws an error if the percentage is not between 0 and 100.
+     */
+    function _setPopaClaimAllocationPercentage(uint percentage) internal {
+        require(percentage <= 100, "Allocation percentage should between 0-100");
+        _popaClaimAllocationPercentage = percentage;
+        emit AllocationPercentageUpdated(percentage);
+    }
+
+    /**
+     * @notice Sets the competition factory contract address
+     * @param competitionFactory_ The address of the competition factory contract
+     *
+     * @dev It sets the competition factory contract address to the specified address.
+     */
+    function _setCompetitionFactory(address competitionFactory_) internal {
+        require(competitionFactory_ != address(0), "Competition factory cant be zero address");
+        competitionFactory = competitionFactory_;
+        emit CompFactoryUpdated(competitionFactory_);
     }
 
     /**
@@ -462,13 +471,5 @@ contract ZizyPoPaFactory is OwnableUpgradeable, ReentrancyGuardUpgradeable {
         }
 
         return true;
-    }
-
-    /**
-     * @notice Get the count of deployed PoPa NFT contracts
-     * @return The number of deployed PoPa NFT contracts
-     */
-    function getDeployedContractCount() external view returns (uint256) {
-        return popaCounter;
     }
 }
