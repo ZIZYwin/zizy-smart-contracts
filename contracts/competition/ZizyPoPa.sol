@@ -1,18 +1,29 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity ^0.8.17;
+pragma solidity 0.8.17;
 
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Pausable.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "./IZizyPoPa.sol";
 
 /**
  * @title ZizyPoPa
  * @notice This contract represents the PoPa (NFT for competitions) contract, where unique tokens can be minted, transferred, and paused.
  * @dev This contract inherits from the ERC721, ERC721Enumerable, ERC721Pausable, and Ownable contracts from OpenZeppelin.
  */
-contract ZizyPoPa is ERC721, ERC721Enumerable, ERC721Pausable, Ownable {
+contract ZizyPoPa is ERC721, ERC721Enumerable, IZizyPoPa, ERC721Pausable, Ownable {
+
+    /**
+     * @dev Popa base uri [optional]
+     */
+    string public baseUri = "";
+
+    /**
+     * @notice The address of the minter account.
+     */
+    address public minterAccount;
 
     /**
      * @dev Emitted when a new PoPa token is minted.
@@ -28,14 +39,12 @@ contract ZizyPoPa is ERC721, ERC721Enumerable, ERC721Pausable, Ownable {
     event BaseURIUpdated(uint timestamp);
 
     /**
-     * @dev Popa base uri [optional]
+     * @dev Throws if the caller is not the minter account.
      */
-    string public baseUri = "";
-
-    /**
-     * @notice The address of the minter account.
-     */
-    address public minterAccount;
+    modifier onlyMinter() {
+        require(msg.sender == minterAccount, "Only call from minter");
+        _;
+    }
 
     /**
      * @notice Initializes the ZizyPoPa contract.
@@ -46,25 +55,6 @@ contract ZizyPoPa is ERC721, ERC721Enumerable, ERC721Pausable, Ownable {
      */
     constructor(string memory name_, string memory symbol_, address minter_) ERC721(name_, symbol_) {
         _setMinter(minter_);
-    }
-
-    /**
-     * @dev Throws if the caller is not the minter account.
-     */
-    modifier onlyMinter() {
-        require(msg.sender == minterAccount, "Only call from minter");
-        _;
-    }
-
-    /**
-     * @notice Sets the minter account address.
-     * @param minter_ The address of the minter account.
-     *
-     * @dev It sets the minter account address to the specified address.
-     */
-    function _setMinter(address minter_) internal {
-        require(minter_ != address(0), "Minter account can not be zero");
-        minterAccount = minter_;
     }
 
     /**
@@ -79,13 +69,6 @@ contract ZizyPoPa is ERC721, ERC721Enumerable, ERC721Pausable, Ownable {
     }
 
     /**
-     * @inheritdoc ERC721
-     */
-    function supportsInterface(bytes4 interfaceId) public view virtual override(ERC721, ERC721Enumerable) returns (bool) {
-        return super.supportsInterface(interfaceId);
-    }
-
-    /**
      * @notice Sets the base URI for token metadata.
      * @param baseUri_ The base URI to be set.
      *
@@ -95,13 +78,6 @@ contract ZizyPoPa is ERC721, ERC721Enumerable, ERC721Pausable, Ownable {
     function setBaseURI(string memory baseUri_) external virtual onlyOwner {
         baseUri = baseUri_;
         emit BaseURIUpdated(block.timestamp);
-    }
-
-    /**
-     * @inheritdoc ERC721
-     */
-    function _baseURI() internal view virtual override(ERC721) returns (string memory) {
-        return baseUri;
     }
 
     /**
@@ -136,6 +112,31 @@ contract ZizyPoPa is ERC721, ERC721Enumerable, ERC721Pausable, Ownable {
      */
     function unpause() external onlyOwner whenPaused {
         _unpause();
+    }
+
+    /**
+     * @inheritdoc ERC721
+     */
+    function supportsInterface(bytes4 interfaceId) public view virtual override(ERC721, IERC165, ERC721Enumerable) returns (bool) {
+        return super.supportsInterface(interfaceId);
+    }
+
+    /**
+     * @notice Sets the minter account address.
+     * @param minter_ The address of the minter account.
+     *
+     * @dev It sets the minter account address to the specified address.
+     */
+    function _setMinter(address minter_) internal {
+        require(minter_ != address(0), "Minter account can not be zero");
+        minterAccount = minter_;
+    }
+
+    /**
+     * @inheritdoc ERC721
+     */
+    function _baseURI() internal view virtual override(ERC721) returns (string memory) {
+        return baseUri;
     }
 
     /**
