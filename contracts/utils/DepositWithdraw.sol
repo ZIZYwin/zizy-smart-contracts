@@ -14,10 +14,29 @@ import "@openzeppelin/contracts-upgradeable/token/ERC721/IERC721Upgradeable.sol"
 abstract contract DepositWithdraw is OwnableUpgradeable, ReentrancyGuardUpgradeable, ERC721HolderUpgradeable {
     using SafeERC20Upgradeable for IERC20Upgradeable;
 
+    /// @notice Asset types for this contract
+    enum AssetType {
+        Native,
+        ERC20,
+        ERC721
+    }
+
     /**
      * @dev Storage gap for futures updates
      */
     uint256[49] private __gap;
+
+    /// @notice Emit when native coin deposit on this contract
+    event Deposit(address indexed account, uint256 amount);
+
+    /**
+     * @notice Event emitted when withdraw any asset from this contract
+     * @param assetType The type of the asset (ERC20, ERC721, Native).
+     * @param assetAddress The contract address of withdrawed asset (ERC20, ERC721)
+     * @param amount Withdraw amount (ERC20, Native)
+     * @param tokenId ID of the ERC721 asset (ERC721)
+     */
+    event Withdraw(AssetType assetType, address assetAddress, uint amount, uint tokenId);
 
     /**
      * @dev Initializes the contract
@@ -36,6 +55,7 @@ abstract contract DepositWithdraw is OwnableUpgradeable, ReentrancyGuardUpgradea
      * @notice Allows deposit native coin on the contract
      */
     function deposit() external payable onlyOwner {
+        emit Deposit(_msgSender(), msg.value);
     }
 
     /**
@@ -51,6 +71,7 @@ abstract contract DepositWithdraw is OwnableUpgradeable, ReentrancyGuardUpgradea
         require(address(this).balance >= amount, "Insufficient native balance");
         (bool sent,) = to_.call{value : amount}("");
         require(sent, "Native coin transfer failed");
+        emit Withdraw(AssetType.Native, address(0), amount, 0);
     }
 
     /**
@@ -66,6 +87,7 @@ abstract contract DepositWithdraw is OwnableUpgradeable, ReentrancyGuardUpgradea
     function _sendToken(address to_, address token_, uint amount) internal {
         IERC20Upgradeable token = IERC20Upgradeable(token_);
         token.safeTransfer(to_, amount);
+        emit Withdraw(AssetType.ERC20, token_, amount, 0);
     }
 
     /**
@@ -79,8 +101,9 @@ abstract contract DepositWithdraw is OwnableUpgradeable, ReentrancyGuardUpgradea
      */
     function _sendNFT(address to_, address token_, uint tokenId_) internal {
         IERC721Upgradeable nft = IERC721Upgradeable(token_);
-        require(nft.ownerOf(tokenId_) == address(this), "Rewards hub contract is not owner of this nft");
+        require(nft.ownerOf(tokenId_) == address(this), "This contract is not owner of given tokenId");
         nft.safeTransferFrom(address(this), to_, tokenId_);
+        emit Withdraw(AssetType.ERC721, token_, 0, tokenId_);
     }
 
     /**
@@ -108,20 +131,6 @@ abstract contract DepositWithdraw is OwnableUpgradeable, ReentrancyGuardUpgradea
     }
 
     /**
-     * @notice Allows the contract owner to deposit reward tokens to the contract.
-     * @param token_ The address of the token to deposit.
-     * @param amount The amount of tokens to deposit.
-     *
-     * @dev Note that the function checks if the contract owner is calling the function. Only the contract owner is allowed to deposit tokens.
-     * The function requires that the contract has sufficient allowance from the caller to transfer the specified amount of tokens.
-     * After confirming the allowance, the function uses the `safeTransferFrom` function of the token contract to transfer the tokens to the contract.
-     */
-    function depositToken(address token_, uint amount) external onlyOwner {
-        IERC20Upgradeable token = IERC20Upgradeable(token_);
-        token.safeTransferFrom(_msgSender(), address(this), amount);
-    }
-
-    /**
      * @notice This function allows the contract owner to withdraw ERC20 tokens from the contract.
      * @param token_ The address of the token to withdraw.
      * @param amount The amount of tokens to withdraw.
@@ -144,19 +153,6 @@ abstract contract DepositWithdraw is OwnableUpgradeable, ReentrancyGuardUpgradea
      */
     function withdrawTokenTo(address to_, address token_, uint amount) external onlyOwner {
         _sendToken(to_, token_, amount);
-    }
-
-    /**
-     * @notice This function allows the contract owner to deposit NFT rewards to the contract.
-     * @param token_ The address of the NFT contract.
-     * @param tokenId_ The ID of the NFT to deposit.
-     *
-     * @dev Note that the function checks if the contract owner is calling the function. Only the contract owner is allowed to deposit NFT rewards.
-     * After confirming the ownership, the function uses the `safeTransferFrom` function of the NFT contract to transfer the NFT to the contract.
-     */
-    function depositNFT(address token_, uint tokenId_) external onlyOwner {
-        IERC721Upgradeable nft = IERC721Upgradeable(token_);
-        nft.safeTransferFrom(_msgSender(), address(this), tokenId_);
     }
 
     /**
