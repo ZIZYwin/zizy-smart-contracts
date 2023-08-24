@@ -11,12 +11,6 @@ import "@openzeppelin/contracts/token/ERC721/extensions/IERC721Enumerable.sol";
  * @dev This interface defines the functions and events of the ZizyCompetitionTicket contract.
  */
 interface IZizyCompetitionTicket is IERC721, IERC721Enumerable {
-    /**
-     * @notice Event emitted when a ticket is minted.
-     * @param ticketOwner The address of the owner of the minted ticket.
-     * @param ticketId The ID of the minted ticket.
-     */
-    event TicketMinted(address ticketOwner, uint256 ticketId);
 
     /**
      * @notice Sets the base URI for computing token URIs.
@@ -44,5 +38,5 @@ interface IZizyCompetitionTicket is IERC721, IERC721Enumerable {
     /**
      * @dev Returns true if the contract is paused, and false otherwise.
      */
-    function paused() external view returns (bool);
+    function isPaused() external view returns (bool);
 }

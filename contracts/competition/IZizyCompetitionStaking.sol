@@ -8,6 +8,35 @@ pragma solidity 0.8.17;
  * @dev This interface defines the functions of the ZizyCompetitionStaking contract.
  */
 interface IZizyCompetitionStaking {
+
+    /// @notice Struct for stake snapshots
+    struct Snapshot {
+        uint256 balance;
+        uint256 prevSnapshotBalance;
+        bool _exist;
+    }
+
+    /// @notice Struct for period & snapshot range
+    struct Period {
+        uint256 firstSnapshotId;
+        uint256 lastSnapshotId;
+        bool isOver;
+        bool _exist;
+    }
+
+    /// @notice Struct for account activity details
+    struct ActivityDetails {
+        uint256 lastSnapshotId;
+        uint256 lastActivityBalance;
+        bool _exist;
+    }
+
+    /// @notice Struct for period stake average
+    struct PeriodStakeAverage {
+        uint256 average;
+        bool _calculated;
+    }
+
     /**
      * @notice Get the average stake amount for an account within a specified range of snapshots.
      * @param account The address of the account.
@@ -73,7 +102,7 @@ interface IZizyCompetitionStaking {
      * @param periodId_ The ID of the period.
      * @return The first snapshot id of period, last snapshot id of period, completion status of period, existence status of period
      */
-    function getPeriod(uint256 periodId_) external view returns (uint, uint, bool, bool);
+    function getPeriod(uint256 periodId_) external view returns (Period memory);
 
     /**
      * @notice Un-stake tokens.

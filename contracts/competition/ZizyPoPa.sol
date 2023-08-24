@@ -6,13 +6,14 @@ import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Pausable.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "./IZizyPoPa.sol";
 
 /**
  * @title ZizyPoPa
  * @notice This contract represents the PoPa (NFT for competitions) contract, where unique tokens can be minted, transferred, and paused.
  * @dev This contract inherits from the ERC721, ERC721Enumerable, ERC721Pausable, and Ownable contracts from OpenZeppelin.
  */
-contract ZizyPoPa is ERC721, ERC721Enumerable, ERC721Pausable, Ownable {
+contract ZizyPoPa is ERC721, ERC721Enumerable, IZizyPoPa, ERC721Pausable, Ownable {
 
     /**
      * @dev Popa base uri [optional]
@@ -56,8 +57,6 @@ contract ZizyPoPa is ERC721, ERC721Enumerable, ERC721Pausable, Ownable {
         _setMinter(minter_);
     }
 
-
-
     /**
      * @notice Sets the minter account address.
      * @param minter_ The address of the minter account.
@@ -68,7 +67,6 @@ contract ZizyPoPa is ERC721, ERC721Enumerable, ERC721Pausable, Ownable {
     function setMinter(address minter_) external onlyOwner {
         _setMinter(minter_);
     }
-
 
     /**
      * @notice Sets the base URI for token metadata.
@@ -81,7 +79,6 @@ contract ZizyPoPa is ERC721, ERC721Enumerable, ERC721Pausable, Ownable {
         baseUri = baseUri_;
         emit BaseURIUpdated(block.timestamp);
     }
-
 
     /**
      * @notice Mints a new PoPa NFT token.
@@ -120,7 +117,7 @@ contract ZizyPoPa is ERC721, ERC721Enumerable, ERC721Pausable, Ownable {
     /**
      * @inheritdoc ERC721
      */
-    function supportsInterface(bytes4 interfaceId) public view virtual override(ERC721, ERC721Enumerable) returns (bool) {
+    function supportsInterface(bytes4 interfaceId) public view virtual override(ERC721, IERC165, ERC721Enumerable) returns (bool) {
         return super.supportsInterface(interfaceId);
     }
 

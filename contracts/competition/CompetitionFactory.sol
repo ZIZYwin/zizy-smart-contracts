@@ -5,53 +5,16 @@ pragma solidity 0.8.17;
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC20/utils/SafeERC20Upgradeable.sol";
-import "./IZizyCompetitionTicket.sol";
 import "./IZizyCompetitionStaking.sol";
 import "./ITicketDeployer.sol";
+import "./ICompetitionFactory.sol";
 
 /**
  * @title CompetitionFactory
  * @notice This contract manages competitions and ticket sales for different periods.
  */
-contract CompetitionFactory is OwnableUpgradeable, ReentrancyGuardUpgradeable {
+contract CompetitionFactory is ICompetitionFactory, OwnableUpgradeable, ReentrancyGuardUpgradeable {
     using SafeERC20Upgradeable for IERC20Upgradeable;
-
-    /// @notice Struct for competition
-    struct Competition {
-        IZizyCompetitionTicket ticket;
-        address sellToken;
-        uint ticketPrice;
-        uint snapshotMin;
-        uint snapshotMax;
-        uint32 ticketSold;
-        bool pairDefined;
-        bool _exist;
-    }
-
-    /// @notice Struct for period
-    struct Period {
-        uint startTime;
-        uint endTime;
-        uint ticketBuyStartTime;
-        uint ticketBuyEndTime;
-        uint256 competitionCount;
-        bool isOver;
-        bool _exist;
-    }
-
-    /// @notice Struct for allocation tier
-    struct Tier {
-        uint min;
-        uint max;
-        uint32 allocation;
-    }
-
-    /// @notice Struct for allocation of period
-    struct Allocation {
-        uint32 bought;
-        uint32 max;
-        bool hasAllocation;
-    }
 
     // Max ticket count per competition = 1M
     uint32 constant MAX_TICKET_PER_COMPETITION = 1_000_000;
@@ -591,7 +554,7 @@ contract CompetitionFactory is OwnableUpgradeable, ReentrancyGuardUpgradeable {
     function mintTicket(uint256 periodId, uint256 competitionId, address to_, uint256 ticketId_) external onlyMinter {
         Competition memory comp = _periodCompetitions[periodId][competitionId];
         require(comp._exist, "Competition does not exist");
-        bool ticketPaused = comp.ticket.paused();
+        bool ticketPaused = comp.ticket.isPaused();
 
         Allocation memory alloc = _getAllocation(to_, periodId, competitionId);
         uint accountTicketBalance = comp.ticket.balanceOf(to_);
@@ -625,7 +588,7 @@ contract CompetitionFactory is OwnableUpgradeable, ReentrancyGuardUpgradeable {
 
         Competition memory comp = _periodCompetitions[periodId][competitionId];
         require(comp._exist, "Competition does not exist");
-        bool ticketPaused = comp.ticket.paused();
+        bool ticketPaused = comp.ticket.isPaused();
 
         Allocation memory alloc = _getAllocation(to_, periodId, competitionId);
         uint accountTicketBalance = comp.ticket.balanceOf(to_);

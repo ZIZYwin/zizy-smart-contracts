@@ -4,13 +4,14 @@ pragma solidity 0.8.17;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "./ZizyCompetitionTicket.sol";
+import "./ITicketDeployer.sol";
 
 /**
  * @title TicketDeployer
  * @dev The TicketDeployer contract is responsible for deploying and managing ZizyCompetitionTicket contracts, which represent NFT tickets for competitions.
  * The contract inherits from the Ownable contract from OpenZeppelin to handle ownership and access control.
  */
-contract TicketDeployer is Ownable {
+contract TicketDeployer is ITicketDeployer, Ownable {
 
     /// @notice Ticket list
     address[] public tickets;

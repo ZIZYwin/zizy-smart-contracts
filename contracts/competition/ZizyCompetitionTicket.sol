@@ -6,13 +6,14 @@ import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Pausable.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "./IZizyCompetitionTicket.sol";
 
 /**
  * @title ZizyCompetitionTicket
  * @notice This contract represents the competition ticket contract, where unique tickets can be minted, transferred, and paused.
  * @dev This contract inherits from the ERC721, ERC721Enumerable, ERC721Pausable, and Ownable contracts from OpenZeppelin.
  */
-contract ZizyCompetitionTicket is ERC721, ERC721Enumerable, ERC721Pausable, Ownable {
+contract ZizyCompetitionTicket is ERC721, IZizyCompetitionTicket, ERC721Enumerable, ERC721Pausable, Ownable {
 
     /**
      * @dev Ticket base uri [optional]
@@ -69,6 +70,13 @@ contract ZizyCompetitionTicket is ERC721, ERC721Enumerable, ERC721Pausable, Owna
     }
 
     /**
+     * @dev Returns true if the contract is paused, and false otherwise.
+     */
+    function isPaused() external view returns (bool) {
+        return paused();
+    }
+
+    /**
      * @notice Mints a new competition ticket
      * @param to_ The address to mint the ticket to
      * @param ticketId_ The ID of the ticket to mint
@@ -86,7 +94,7 @@ contract ZizyCompetitionTicket is ERC721, ERC721Enumerable, ERC721Pausable, Owna
     /**
      * @inheritdoc ERC721
      */
-    function supportsInterface(bytes4 interfaceId) public view virtual override(ERC721, ERC721Enumerable) returns (bool) {
+    function supportsInterface(bytes4 interfaceId) public view virtual override(ERC721, IERC165, ERC721Enumerable) returns (bool) {
         return super.supportsInterface(interfaceId);
     }
 

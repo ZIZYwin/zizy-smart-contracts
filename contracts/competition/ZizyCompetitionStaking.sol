@@ -5,38 +5,11 @@ pragma solidity 0.8.17;
 import "@openzeppelin/contracts-upgradeable/token/ERC20/utils/SafeERC20Upgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "./ICompetitionFactory.sol";
+import "./IZizyCompetitionStaking.sol";
 
 // @dev We building sth big. Stay tuned!
-contract ZizyCompetitionStaking is OwnableUpgradeable {
+contract ZizyCompetitionStaking is IZizyCompetitionStaking, OwnableUpgradeable {
     using SafeERC20Upgradeable for IERC20Upgradeable;
-
-    /// @notice Struct for stake snapshots
-    struct Snapshot {
-        uint256 balance;
-        uint256 prevSnapshotBalance;
-        bool _exist;
-    }
-
-    /// @notice Struct for period & snapshot range
-    struct Period {
-        uint256 firstSnapshotId;
-        uint256 lastSnapshotId;
-        bool isOver;
-        bool _exist;
-    }
-
-    /// @notice Struct for account activity details
-    struct ActivityDetails {
-        uint256 lastSnapshotId;
-        uint256 lastActivityBalance;
-        bool _exist;
-    }
-
-    /// @notice Struct for period stake average
-    struct PeriodStakeAverage {
-        uint256 average;
-        bool _calculated;
-    }
 
     /// @notice The address of the stake token used for staking (ZIZY)
     IERC20Upgradeable public stakeToken;
@@ -219,9 +192,9 @@ contract ZizyCompetitionStaking is OwnableUpgradeable {
      */
     modifier whenCurrentPeriodInBuyStage() {
         uint ts = block.timestamp;
-        (uint start, uint end, uint ticketBuyStart, uint ticketBuyEnd, , , bool exist) = _getPeriod(currentPeriod);
-        require(exist, "Period does not exist");
-        require(_isInRange(ts, start, end) && _isInRange(ts, ticketBuyStart, ticketBuyEnd), "Currently not in the range that can be calculated");
+        ICompetitionFactory.Period memory period = _getPeriod(currentPeriod);
+        require(period._exist, "Period does not exist");
+        require(_isInRange(ts, period.startTime, period.endTime) && _isInRange(ts, period.ticketBuyStartTime, period.ticketBuyEndTime), "Currently not in the range that can be calculated");
         _;
     }
 
@@ -376,9 +349,9 @@ contract ZizyCompetitionStaking is OwnableUpgradeable {
      */
     function snapshot() external onlyOwner {
         uint256 periodId = currentPeriod;
-        (, , , , , , bool exist) = _getPeriod(periodId);
+        ICompetitionFactory.Period memory period = _getPeriod(periodId);
 
-        require(exist, "No active period exist");
+        require(period._exist, "No active period exist");
 
         _snapshot();
     }
@@ -756,7 +729,7 @@ contract ZizyCompetitionStaking is OwnableUpgradeable {
      * Otherwise, if the cooling off period has passed, the function returns the requested amount as is, without any fee deduction.
      */
     function calculateUnStakeAmounts(uint requestAmount_) public view returns (uint, uint) {
-        (uint startTime, , , , , , bool exist) = _getPeriod(currentPeriod);
+        ICompetitionFactory.Period memory period = _getPeriod(currentPeriod);
         uint timestamp = block.timestamp;
         uint CD = coolingDelay;
         uint CSD = coolestDelay;
@@ -766,18 +739,18 @@ contract ZizyCompetitionStaking is OwnableUpgradeable {
         uint amount_ = requestAmount_;
 
         // Unstake all if period does not exist or cooling delays isn't defined
-        if (!exist || (CD == 0 && CSD == 0)) {
+        if (!period._exist || (CD == 0 && CSD == 0)) {
             return (fee_, amount_);
         }
 
-        if (timestamp < (startTime + CSD) || startTime >= timestamp) {
+        if (timestamp < (period.startTime + CSD) || period.startTime >= timestamp) {
             // In coolest period
             fee_ = (requestAmount_ * percentage) / 100;
             amount_ = requestAmount_ - fee_;
-        } else if (timestamp >= (startTime + CSD) && timestamp <= (startTime + CSD + CD)) {
+        } else if (timestamp >= (period.startTime + CSD) && timestamp <= (period.startTime + CSD + CD)) {
             // In cooling period
             uint LCB = (requestAmount_ * percentage) / 100;
-            uint RF = ((timestamp - (startTime + CSD)) * LCB / CD);
+            uint RF = ((timestamp - (period.startTime + CSD)) * LCB / CD);
 
             amount_ = (requestAmount_ - (LCB - RF));
             fee_ = requestAmount_ - amount_;
@@ -858,7 +831,7 @@ contract ZizyCompetitionStaking is OwnableUpgradeable {
      * @dev This internal function retrieves the period details from the competition factory contract.
      * It returns the (start time, end time, ticket buy start time, ticket buy end time, competition count on period, completion status of the period, existence status).
      */
-    function _getPeriod(uint256 periodId_) internal view returns (uint, uint, uint, uint, uint16, bool, bool) {
+    function _getPeriod(uint256 periodId_) internal view returns (ICompetitionFactory.Period memory) {
         return ICompetitionFactory(competitionFactory).getPeriod(periodId_);
     }
 

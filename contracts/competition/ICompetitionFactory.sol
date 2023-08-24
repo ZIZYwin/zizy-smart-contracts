@@ -2,12 +2,52 @@
 
 pragma solidity 0.8.17;
 
+import "./IZizyCompetitionTicket.sol";
+
 /**
  * @title CompetitionFactory Interface
  * @notice This interface represents the CompetitionFactory contract.
  * @dev This interface defines the functions of the CompetitionFactory contract.
  */
 interface ICompetitionFactory {
+
+    /// @notice Struct for competition
+    struct Competition {
+        IZizyCompetitionTicket ticket;
+        address sellToken;
+        uint ticketPrice;
+        uint snapshotMin;
+        uint snapshotMax;
+        uint32 ticketSold;
+        bool pairDefined;
+        bool _exist;
+    }
+
+    /// @notice Struct for period
+    struct Period {
+        uint startTime;
+        uint endTime;
+        uint ticketBuyStartTime;
+        uint ticketBuyEndTime;
+        uint256 competitionCount;
+        bool isOver;
+        bool _exist;
+    }
+
+    /// @notice Struct for allocation tier
+    struct Tier {
+        uint min;
+        uint max;
+        uint32 allocation;
+    }
+
+    /// @notice Struct for allocation of period
+    struct Allocation {
+        uint32 bought;
+        uint32 max;
+        bool hasAllocation;
+    }
+
     /**
      * @notice Get the total count of periods.
      * @return The total count of periods.
@@ -33,7 +73,7 @@ interface ICompetitionFactory {
      * @param periodId The ID of the period.
      * @return The start time, end time, ticket buy start time, ticket buy end time, competition count on period, completion status of period, existence status of period
      */
-    function getPeriod(uint256 periodId) external view returns (uint, uint, uint, uint, uint16, bool, bool);
+    function getPeriod(uint256 periodId) external view returns (Period memory);
 
     /**
      * @notice Get the allocation details for an account in a period and competition.
@@ -42,7 +82,7 @@ interface ICompetitionFactory {
      * @param competitionId The ID of the competition.
      * @return The allocation for the account (staking percentage, winning percentage, and existence flag).
      */
-    function getAllocation(address account, uint256 periodId, uint256 competitionId) external view returns (uint32, uint32, bool);
+    function getAllocation(address account, uint256 periodId, uint256 competitionId) external view returns (Allocation memory);
 
     /**
      * @notice Check if an account has participated in a period.
@@ -66,7 +106,7 @@ interface ICompetitionFactory {
      * @param competitionId The ID of the competition.
      * @return The competition address and pause flag.
      */
-    function getPeriodCompetition(uint256 periodId, uint256 competitionId) external view returns (address, bool);
+    function getPeriodCompetition(uint256 periodId, uint256 competitionId) external view returns (Competition memory);
 
     /**
      * @notice Get the count of competitions for a period.

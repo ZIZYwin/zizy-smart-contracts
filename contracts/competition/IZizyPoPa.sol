@@ -11,12 +11,6 @@ import "@openzeppelin/contracts/token/ERC721/extensions/IERC721Enumerable.sol";
  * @dev This interface defines the functions and events of the ZizyPoPa contract.
  */
 interface IZizyPoPa is IERC721, IERC721Enumerable {
-    /**
-     * @notice Event emitted when a PoPa is minted.
-     * @param to The address of the recipient of the minted PoPa.
-     * @param tokenId The token ID of the minted PoPa.
-     */
-    event PoPaMinted(address to, uint256 tokenId);
 
     /**
      * @notice Sets the minter address.

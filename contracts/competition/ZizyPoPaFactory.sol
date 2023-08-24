@@ -457,15 +457,15 @@ contract ZizyPoPaFactory is OwnableUpgradeable, ReentrancyGuardUpgradeable {
                 continue;
             }
 
-            (uint32 bought, uint32 max, bool hasAlloc) = factory.getAllocation(account, periodId, compId);
+            ICompetitionFactory.Allocation memory alloc = factory.getAllocation(account, periodId, compId);
 
             // User hasn't participated all competitions
-            if (!hasAlloc || bought == 0) {
+            if (!alloc.hasAllocation || alloc.bought == 0) {
                 return false;
             }
 
             // User didn't bought enough ticket for competition
-            if (bought < ((max * percentage) / 100)) {
+            if (alloc.bought < ((alloc.max * percentage) / 100)) {
                 return false;
             }
         }
