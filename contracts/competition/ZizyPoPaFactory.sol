@@ -277,26 +277,6 @@ contract ZizyPoPaFactory is OwnableUpgradeable, ReentrancyGuardUpgradeable {
     }
 
     /**
-     * @notice Sets the base URI for a specific period's PoPa NFTs
-     * @param periodId_ The ID of the period
-     * @param baseUri_ The base URI to be set
-     *
-     * @dev This function can only be called by the contract owner.
-     * It sets the base URI for the PoPa NFTs of the specified period.
-     * The PoPa NFT contract address is fetched based on the period ID,
-     * and then the `setBaseURI` function is called on the PoPa contract
-     * to set the base URI to the specified value.
-     * Throws an error if the PoPa contract does not exist for the given period ID.
-     */
-    function setBaseURI(uint256 periodId_, string memory baseUri_) external onlyOwner {
-        address popaAddress = _periodPopas[periodId_];
-        require(popaAddress != address(0), "Popa doesnt exist");
-
-        IZizyPoPa popa = IZizyPoPa(popaAddress);
-        popa.setBaseURI(baseUri_);
-    }
-
-    /**
      * @notice Deploys a new PoPa NFT contract
      * @param name_ The name of the PoPa NFT contract
      * @param symbol_ The symbol of the PoPa NFT contract
