@@ -427,7 +427,6 @@ contract ZizyRewardsHub is DepositWithdraw {
 
         Reward memory rew = _airdropRewards[receiver_][airdropId_][rewardIndex];
 
-        require(rew._exist, "Reward does not exist");
         require(!rew.isClaimed, "Can not remove claimed reward");
 
         Reward[] storage receiverRewards = _airdropRewards[receiver_][airdropId_];
