@@ -175,7 +175,7 @@ contract ZizyCompetitionStaking is IZizyCompetitionStaking, OwnableUpgradeable {
      */
     modifier whenPeriodExist() {
         uint256 periodId = currentPeriod;
-        require(periodId > 0 && periods[periodId]._exist, "There is no period exist");
+        require(periods[periodId]._exist, "There is no period exist");
         _;
     }
 
