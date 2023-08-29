@@ -611,7 +611,7 @@ contract ZizyCompetitionStaking is IZizyCompetitionStaking, OwnableUpgradeable {
      * It then divides the sum by the number of snapshots to get the average balance. The calculated value will be true.
      */
     function getPeriodSnapshotsAverage(address account, uint256 periodId, uint256 min, uint256 max) external view returns (uint256, bool) {
-        require(min <= max, "Min should be higher");
+        require(min <= max, "Min should be higher than max");
         uint256 currentSnapshotId = snapshotId;
         Period memory period = periods[periodId];
         PeriodStakeAverage memory avg = averages[account][periodId];
@@ -624,7 +624,7 @@ contract ZizyCompetitionStaking is IZizyCompetitionStaking, OwnableUpgradeable {
         uint maxSnapshot = (period.lastSnapshotId == 0 ? currentSnapshotId : period.lastSnapshotId);
 
         require(max <= maxSnapshot, "Range max should be lower than current snapshot or period last snapshot");
-        require(min >= period.firstSnapshotId && min <= maxSnapshot, "Range min should be higher period first snapshot id");
+        require(min >= period.firstSnapshotId, "Range min should be higher period first snapshot id");
 
         uint total = 0;
         uint sCount = (max - min + 1);
