@@ -325,8 +325,7 @@ contract CompetitionFactory is ICompetitionFactory, OwnableUpgradeable, Reentran
         require(period._exist, "Period does not exist");
         require(!period.isOver, "This period is over");
 
-        (uint256 response) = stakingContract.setPeriodId(periodId);
-        require(response == periodId, "ZizyComp: Staking contract period can't updated");
+        stakingContract.setPeriodId(periodId);
 
         // Set previous period is over !
         if (oldPeriod != 0) {
