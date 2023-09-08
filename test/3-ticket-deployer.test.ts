@@ -17,12 +17,16 @@ describe("TicketDeployer", function() {
     await ticketDeployer.deployed();
   });
 
+
   it("should have correct initial state variables", async function() {
-    expect(await ticketDeployer.getDeployedContractCount()).to.equal(0, "Deployed ticket count should be zero");
-    expect(await ticketDeployer.owner()).to.equal(owner.address, "Wrong owner account");
+    const deployedContractCount = await ticketDeployer.getDeployedContractCount();
+    const initialOwner = await ticketDeployer.owner();
+    expect(deployedContractCount).to.equal(0, "Deployed ticket count should be zero");
+    expect(initialOwner).to.equal(owner.address, "Wrong owner account");
   });
 
   it("shouldn't deploy ticket with an un-authorized account", async function() {
+    // await expect(await ticketDeployer.connect(account1).deploy("Random", "Random")).to.revertedWith('Ownable: caller is not the owner');
     try {
       await ticketDeployer.connect(account1).deploy("Random", "Random");
       assert.fail("Shouldn't deploy any ticket contract an un-authorized account");
@@ -32,7 +36,7 @@ describe("TicketDeployer", function() {
   });
 
   it("should deploy ticket without error", async function() {
-    expect(await ticketDeployer.deploy("Random", "Random"), "Should emit TicketDeployed event on deploy succeeded").to.emit(ticketDeployer, "TicketDeployed");
+    expect(await ticketDeployer.deploy("Random", "Random"), "Should emit TicketDeployed event on deploy succeeded").to.emit(ticketDeployer, "OwnershipTransferred").to.emit(ticketDeployer, "TicketDeployed");
     expect(await ticketDeployer.getDeployedContractCount()).to.equal(1, "Deployed ticket count should be zero");
   });
 
@@ -54,7 +58,7 @@ describe("TicketDeployer", function() {
       expect(await ticket.owner()).to.equal(owner.address, "Wrong owner address");
       expect(await ticket.paused()).to.equal(false, "Should not paused on deploy");
       expect(await ticket.totalSupply()).to.equal(0, "Total supply should be zero");
-      expect(await ticket.baseUri()).to.equal('', "Base URI should be empty");
+      expect(await ticket.baseUri()).to.equal("", "Base URI should be empty");
 
       try {
         await ticket.tokenURI(236617);
@@ -72,11 +76,10 @@ describe("TicketDeployer", function() {
     });
 
     it("support interface validations", async function() {
-      expect(await ticket.supportsInterface('0x780e9d63')).to.equal(true, "Should support ERC721Enumerable interface id");
-      expect(await ticket.supportsInterface('0x80ac58cd')).to.equal(true, "Should support ERC721 interface id");
-      expect(await ticket.supportsInterface('0x00110011')).to.equal(false, "Shouldn't support not existed interface id");
+      expect(await ticket.supportsInterface("0x780e9d63")).to.equal(true, "Should support ERC721Enumerable interface id");
+      expect(await ticket.supportsInterface("0x80ac58cd")).to.equal(true, "Should support ERC721 interface id");
+      expect(await ticket.supportsInterface("0x00110011")).to.equal(false, "Shouldn't support not existed interface id");
     });
-
 
   });
 
