@@ -44,9 +44,6 @@ contract ZizyCompetitionStaking is IZizyCompetitionStaking, OwnableUpgradeable {
     /// @notice Stake/Unstake lock mechanism moderator
     address public lockModerator;
 
-    // @notice Un-stake time locks for accounts
-    mapping(address => uint) private timeLocks;
-
     // @notice Stake balances for each address
     mapping(address => uint256) private balances;
 
@@ -128,13 +125,6 @@ contract ZizyCompetitionStaking is IZizyCompetitionStaking, OwnableUpgradeable {
     event LockModeratorUpdated(address moderator);
 
     /**
-    * @notice Event emitted when any account unstake time locked
-    * @param account Locked account
-    * @param lockTime Lock time
-    */
-    event UnstakeTimeLock(address account, uint lockTime);
-
-    /**
      * @dev Emitted when the competition factory address updated
      * @param factoryAddress The address of competition factory
      */
@@ -175,15 +165,7 @@ contract ZizyCompetitionStaking is IZizyCompetitionStaking, OwnableUpgradeable {
      */
     modifier whenPeriodExist() {
         uint256 periodId = currentPeriod;
-        require(periodId > 0 && periods[periodId]._exist, "There is no period exist");
-        _;
-    }
-
-    /**
-     * @dev Modifier that checks caller is lock moderator
-     */
-    modifier onlyModerator() {
-        require(_msgSender() == lockModerator, "Only moderators can call this function");
+        require(periods[periodId]._exist, "There is no period exist");
         _;
     }
 
@@ -240,19 +222,6 @@ contract ZizyCompetitionStaking is IZizyCompetitionStaking, OwnableUpgradeable {
             lockModerator = moderator;
             emit LockModeratorUpdated(moderator);
         }
-    }
-
-    /**
-     * @notice Set time lock for un-stake
-     * @param account Lock account
-     * @param lockTime Lock timer as second
-     */
-    function setTimeLock(address account, uint lockTime) external onlyModerator {
-        require(account != address(0), "Account cant be zero address");
-        require(lockTime > 0 && lockTime <= 300, "Lock time should between 0-5 minute");
-        require(tx.origin == account, "Lock only applicable with given account");
-        timeLocks[account] = (block.timestamp + lockTime);
-        emit UnstakeTimeLock(account, lockTime);
     }
 
     /**
@@ -483,7 +452,6 @@ contract ZizyCompetitionStaking is IZizyCompetitionStaking, OwnableUpgradeable {
      * It emits the UnStake event.
      */
     function unStake(uint256 amount_) external whenFeeAddressExist {
-        require(!isTimeLocked(_msgSender()), "Time lock active");
         uint256 currentBalance = balanceOf(_msgSender());
         uint256 currentSnapshot = snapshotId;
         uint256 periodId = currentPeriod;
@@ -611,7 +579,7 @@ contract ZizyCompetitionStaking is IZizyCompetitionStaking, OwnableUpgradeable {
      * It then divides the sum by the number of snapshots to get the average balance. The calculated value will be true.
      */
     function getPeriodSnapshotsAverage(address account, uint256 periodId, uint256 min, uint256 max) external view returns (uint256, bool) {
-        require(min <= max, "Min should be higher");
+        require(min <= max, "Min should be higher than max");
         uint256 currentSnapshotId = snapshotId;
         Period memory period = periods[periodId];
         PeriodStakeAverage memory avg = averages[account][periodId];
@@ -624,7 +592,7 @@ contract ZizyCompetitionStaking is IZizyCompetitionStaking, OwnableUpgradeable {
         uint maxSnapshot = (period.lastSnapshotId == 0 ? currentSnapshotId : period.lastSnapshotId);
 
         require(max <= maxSnapshot, "Range max should be lower than current snapshot or period last snapshot");
-        require(min >= period.firstSnapshotId && min <= maxSnapshot, "Range min should be higher period first snapshot id");
+        require(min >= period.firstSnapshotId, "Range min should be higher period first snapshot id");
 
         uint total = 0;
         uint sCount = (max - min + 1);
@@ -692,15 +660,6 @@ contract ZizyCompetitionStaking is IZizyCompetitionStaking, OwnableUpgradeable {
         uint average = (total / (lastSnapshot - firstSnapshot + 1));
         averages[_msgSender()][periodId] = PeriodStakeAverage(average, true);
         emit PeriodStakeAverageCalculated(_msgSender(), periodId, average);
-    }
-
-    /**
-     * @notice Get time lock status of any account
-     * @param account Account for check status
-     */
-    function isTimeLocked(address account) public view returns (bool) {
-        uint unlockTime = timeLocks[account];
-        return (unlockTime > block.timestamp);
     }
 
     /**

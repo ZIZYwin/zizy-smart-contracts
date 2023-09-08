@@ -109,11 +109,4 @@ interface IZizyCompetitionStaking {
      * @param amount_ The amount of tokens to un-stake.
      */
     function unStake(uint256 amount_) external;
-
-    /**
-     * @notice Set time lock for un-stake
-     * @param account Lock account
-     * @param lockTime Lock timer as second
-     */
-    function setTimeLock(address account, uint lockTime) external;
 }

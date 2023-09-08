@@ -341,15 +341,15 @@ contract ZizyRewardsHub is DepositWithdraw {
         } else {
             // Reward is in current chain
 
-            if (rew.rewardType == RewardType.Token) {
-                // ERC20 Transfer
-                _sendToken(_msgSender(), rew.rewardAddress, rew.amount);
-            } else if (rew.rewardType == RewardType.NFT) {
-                // ERC721 Transfer
-                _sendNFT(_msgSender(), rew.rewardAddress, rew.tokenId);
-            } else if (rew.rewardType == RewardType.Native) {
+            if (rew.rewardType == RewardType.Native) {
                 // Native Transfer
                 _sendNativeCoin(payable(_msgSender()), rew.amount);
+            } else if (rew.rewardType == RewardType.Token) {
+                // ERC20 Transfer
+                _sendToken(_msgSender(), rew.rewardAddress, rew.amount);
+            } else {
+                // ERC721 Transfer
+                _sendNFT(_msgSender(), rew.rewardAddress, rew.tokenId);
             }
 
             emit CompRewardClaimed(rewSource.periodId, rewSource.competitionId, rew.rewardType, rew.rewardAddress, _msgSender(), rew.amount, rew.tokenId);
@@ -427,7 +427,6 @@ contract ZizyRewardsHub is DepositWithdraw {
 
         Reward memory rew = _airdropRewards[receiver_][airdropId_][rewardIndex];
 
-        require(rew._exist, "Reward does not exist");
         require(!rew.isClaimed, "Can not remove claimed reward");
 
         Reward[] storage receiverRewards = _airdropRewards[receiver_][airdropId_];
@@ -582,7 +581,6 @@ contract ZizyRewardsHub is DepositWithdraw {
         require(rewardIndex < rewardCount, "Reward index out of boundaries");
 
         Reward memory rew = _airdropRewards[receiver_][airdropId_][rewardIndex];
-        require(rew._exist, "Reward does not exist");
         require(!rew.isClaimed, "Reward already claimed");
 
         _airdropRewards[receiver_][airdropId_][rewardIndex].isClaimed = true;
@@ -593,15 +591,15 @@ contract ZizyRewardsHub is DepositWithdraw {
         } else {
             // Reward is in current chain
 
-            if (rew.rewardType == RewardType.Token) {
-                // ERC20 Transfer
-                _sendToken(receiver_, rew.rewardAddress, rew.amount);
-            } else if (rew.rewardType == RewardType.NFT) {
-                // ERC721 Transfer
-                _sendNFT(receiver_, rew.rewardAddress, rew.tokenId);
-            } else if (rew.rewardType == RewardType.Native) {
+            if (rew.rewardType == RewardType.Native) {
                 // Native Transfer
                 _sendNativeCoin(payable(receiver_), rew.amount);
+            } else if (rew.rewardType == RewardType.Token) {
+                // ERC20 Transfer
+                _sendToken(receiver_, rew.rewardAddress, rew.amount);
+            } else {
+                // ERC721 Transfer
+                _sendNFT(receiver_, rew.rewardAddress, rew.tokenId);
             }
 
             emit AirdropRewardClaimed(airdropId_, rewardIndex, rew.rewardType, rew.rewardAddress, receiver_, rew.amount, rew.tokenId);

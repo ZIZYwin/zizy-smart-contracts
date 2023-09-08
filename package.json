@@ -13,7 +13,9 @@
     "test": "npx hardhat test --network hardhatLocal",
     "serve:remix-ide": "remixd -s ./ -u https://remix.ethereum.org",
     "compile": "npx hardhat compile",
-    "hardhat:node": "npx hardhat node"
+    "hardhat:node": "npx hardhat node",
+    "solc:coverage": "npx hardhat coverage --testfiles \"test/*.ts\"",
+    "hardhat:docgen": "npx hardhat docgen"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-toolbox": "2.0.2",
@@ -32,6 +34,7 @@
     "hardhat": "^2.13.1",
     "hardhat-gas-reporter": "^1.0.9",
     "lodash": "^4.17.21",
+    "solidity-docgen": "^0.6.0-beta.36",
     "ts-node": "^10.9.1",
     "tslib": "^2.5.0",
     "typescript": "^5.0.4",

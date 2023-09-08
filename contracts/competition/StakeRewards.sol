@@ -21,8 +21,7 @@ contract StakeRewards is DepositWithdraw {
 
     /// @notice Enum for reward booster types
     enum BoosterType {
-        HoldingPOPA,
-        StakingBalance
+        HoldingPOPA
     }
 
     /// @notice Struct for reward booster
@@ -187,7 +186,7 @@ contract StakeRewards is DepositWithdraw {
     /**
      * @notice This event is emitted when a booster is set or updated.
      * @param boosterId The ID of the booster.
-     * @param boosterType The type of the booster (StakingBalance or HoldingPOPA).
+     * @param boosterType The type of the booster (HoldingPOPA).
      * @param contractAddress The address of the contract associated with the booster.
      * @param amount The amount or condition associated with the booster (e.g., stake balance amount).
      * @param boostPercentage The boost percentage offered by the booster.
@@ -280,19 +279,15 @@ contract StakeRewards is DepositWithdraw {
     /**
      * @notice Sets or updates a booster.
      * @param boosterId_ The ID of the booster.
-     * @param type_ The type of the booster (HoldingPOPA, StakingBalance).
+     * @param type_ The type of the booster (HoldingPOPA).
      * @param contractAddress_ The address of the contract (for HoldingPOPA boosters).
-     * @param amount_ The amount required for the booster (for StakingBalance boosters).
+     * @param amount_ The amount required for the booster.
      * @param boostPercentage_ The boost percentage for the booster.
      *
      * @dev This function sets or updates a booster with the given parameters. It validates the inputs based on the booster type.
      *      If the booster ID doesn't exist, it adds the booster ID to the list of booster IDs.
      */
     function setBooster(uint16 boosterId_, BoosterType type_, address contractAddress_, uint amount_, uint boostPercentage_) external onlyRewardDefiner {
-        // Validate
-        if (type_ == BoosterType.StakingBalance) {
-            require(amount_ > 0, "Amount should be higher than zero");
-        }
         if (type_ == BoosterType.HoldingPOPA) {
             require(contractAddress_ != address(0), "Contract address cant be zero address");
         }
@@ -300,8 +295,6 @@ contract StakeRewards is DepositWithdraw {
         // Format
         if (type_ == BoosterType.HoldingPOPA) {
             amount_ = 0;
-        } else if (type_ == BoosterType.StakingBalance) {
-            contractAddress_ = address(0);
         }
 
         bool isExist = _boosters[boosterId_]._exist;
@@ -575,7 +568,6 @@ contract StakeRewards is DepositWithdraw {
      *
      * @dev This function calculates the total boost percentage for the given account by iterating through the boosters.
      *      It checks if each booster exists and applies the corresponding boost percentage based on the booster type.
-     *      - For BoosterType.StakingBalance: If the staking balance is higher than the specified amount, the boost percentage is added.
      *      - For BoosterType.HoldingPOPA: If the account holds at least one POPA of the specified contract, the boost percentage is added.
      */
     function getAccountBoostPercentage(address account_, uint rewardId_, uint vestingIndex_) public view returns (uint) {
@@ -586,16 +578,8 @@ contract StakeRewards is DepositWithdraw {
         for (uint i = 0; i < boosterCount; i++) {
             uint16 boosterId = ids[i];
             Booster memory booster = _boosters[boosterId];
-            if (!booster._exist) {
-                continue;
-            }
 
-            if (booster.boosterType == BoosterType.StakingBalance) {
-                // Add additional boost percentage if stake balance is higher than given balance condition
-                if (stakingContract.balanceOf(account_) >= booster.amount) {
-                    percentage += booster.boostPercentage;
-                }
-            } else if (booster.boosterType == BoosterType.HoldingPOPA) {
+            if (booster.boosterType == BoosterType.HoldingPOPA) {
                 // Add additional boost percentage if account is given POPA holder
                 IERC721EnumerableUpgradeable popaNFT = IERC721EnumerableUpgradeable(booster.contractAddress);
 
@@ -816,17 +800,8 @@ contract StakeRewards is DepositWithdraw {
         for (uint i = 0; i < boosterCount; i++) {
             uint16 boosterId = ids[i];
             Booster memory booster = _boosters[boosterId];
-            if (!booster._exist) {
-                continue;
-            }
 
-            if (booster.boosterType == BoosterType.StakingBalance) {
-                // Stake amount check for apply time-lock
-                if (stakingContract.balanceOf(account_) >= booster.amount) {
-                    // Set 2 minute time lock for account
-                    stakingContract.setTimeLock(account_, 120);
-                }
-            } else if (booster.boosterType == BoosterType.HoldingPOPA) {
+            if (booster.boosterType == BoosterType.HoldingPOPA) {
                 // Popa holding check for set as used state
                 IERC721EnumerableUpgradeable popaNFT = IERC721EnumerableUpgradeable(booster.contractAddress);
 
@@ -883,13 +858,8 @@ contract StakeRewards is DepositWithdraw {
      */
     function _setReward(uint rewardId_, uint chainId_, RewardType rewardType_, address contractAddress_, uint amount_, uint percentage_) internal {
         require(!_isRewardClaimed[rewardId_], "This rewardId has claimed reward. Cant update");
-        Reward memory currentReward = _rewards[rewardId_];
-        Reward memory reward = Reward(chainId_, rewardType_, contractAddress_, amount_, 0, percentage_, false);
+        Reward memory reward = Reward(chainId_, rewardType_, contractAddress_, amount_, 0, percentage_, true);
         require(_validateReward(reward), "Reward data is not correct");
-
-        if (currentReward._exist && _isRewardClaimed[rewardId_]) {
-            revert("Cant set/update claimed reward");
-        }
 
         _rewards[rewardId_] = reward;
 

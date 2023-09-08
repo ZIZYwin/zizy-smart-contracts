@@ -1,5 +1,6 @@
 import * as dotenv from "dotenv";
-import 'solidity-coverage'
+import "solidity-coverage";
+import "solidity-docgen";
 
 import { HardhatUserConfig } from "hardhat/config";
 import "@nomiclabs/hardhat-etherscan";
@@ -104,6 +105,9 @@ const config: HardhatUserConfig = {
   },
   etherscan: {
     apiKey: process.env.POLYGONSCAN_API_KEY
+  },
+  docgen: {
+    pages: "files"
   }
 };
 
